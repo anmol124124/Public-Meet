@@ -38,9 +38,9 @@ export default function Home() {
   const startMeeting = async (roomCode) => {
     if (isLoggedIn()) {
       try {
-        const { token } = await getHostToken(roomCode);
+        const { token, name } = await getHostToken(roomCode);
         navigate(`/${roomCode}/room`, {
-          state: { token, isHost: true },
+          state: { token, name, isHost: true },
         });
       } catch (err) {
         setError(err.message);

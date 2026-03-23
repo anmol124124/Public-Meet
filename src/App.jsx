@@ -4,6 +4,7 @@ import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import JoinRoom from "./pages/JoinRoom";
 import Room from "./pages/Room";
+import Left from "./pages/Left";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Route path="/auth" element={<Auth />} />
       <Route path="/:roomCode" element={<JoinRoom />} />
       <Route path="/:roomCode/room" element={<Room />} />
+      <Route path="/:roomCode/left" element={<Left />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

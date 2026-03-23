@@ -10,11 +10,10 @@ export default function JoinRoom() {
   const { roomCode } = useParams();
   const navigate     = useNavigate();
 
-  const [meeting, setMeeting]     = useState(null);
-  const [notFound, setNotFound]   = useState(false);
-  const [guestName, setGuestName] = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState("");
+  const [meeting, setMeeting]   = useState(null);
+  const [notFound, setNotFound] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
 
   useEffect(() => {
     getMeeting(roomCode)
@@ -24,13 +23,12 @@ export default function JoinRoom() {
 
   const joinNow = async (e) => {
     e.preventDefault();
-    if (!guestName.trim()) return;
     setLoading(true);
     setError("");
     try {
-      const { token } = await getGuestToken(roomCode, guestName.trim());
+      const { token } = await getGuestToken(roomCode, "Guest");
       navigate(`/${roomCode}/room`, {
-        state: { token, name: guestName.trim(), isHost: false },
+        state: { token, isHost: false },
       });
     } catch (err) {
       setError(err.message);
@@ -76,21 +74,11 @@ export default function JoinRoom() {
         <p style={styles.roomCode}>Room · {roomCode}</p>
 
         <form onSubmit={joinNow} style={styles.form}>
-          <label style={styles.label}>What's your name?</label>
-          <input
-            style={styles.input}
-            type="text"
-            placeholder="Enter your name"
-            value={guestName}
-            onChange={(e) => setGuestName(e.target.value)}
-            maxLength={60}
-            autoFocus
-          />
           {error && <p style={styles.error}>{error}</p>}
           <button
             type="submit"
-            style={{ ...styles.btn, opacity: !guestName.trim() || loading ? 0.5 : 1 }}
-            disabled={!guestName.trim() || loading}
+            style={{ ...styles.btn, opacity: loading ? 0.5 : 1 }}
+            disabled={loading}
           >
             {loading ? "Joining…" : "Join Meeting"}
           </button>
