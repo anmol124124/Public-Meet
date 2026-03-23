@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createMeeting } from "../api";
+import { createMeeting, getHostToken, isLoggedIn, listMeetings } from "../api";
 
 export default function Home() {
   const [meetingName, setMeetingName] = useState("");
@@ -10,6 +10,13 @@ export default function Home() {
   const [activeTab, setActiveTab]     = useState("upcoming");
   const [copied, setCopied]           = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoggedIn()) return;
+    listMeetings()
+      .then((data) => setMeetings(data))
+      .catch(() => {/* silently ignore — user will still see empty state */});
+  }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -28,12 +35,24 @@ export default function Home() {
     }
   };
 
-  const startMeeting = (roomCode) => {
-    navigate(`/auth?redirect=/${roomCode}/room&roomCode=${roomCode}`);
+  const startMeeting = async (roomCode) => {
+    if (isLoggedIn()) {
+      try {
+        const { token } = await getHostToken(roomCode);
+        navigate(`/${roomCode}/room`, {
+          state: { token, isHost: true },
+        });
+      } catch (err) {
+        setError(err.message);
+      }
+    } else {
+      navigate(`/auth?redirect=/${roomCode}/room&roomCode=${roomCode}`);
+    }
   };
 
   const copyLink = (m) => {
-    navigator.clipboard.writeText(m.url);
+    const url = `${window.location.origin}/${m.room_code}/room`;
+    navigator.clipboard.writeText(url);
     setCopied(m.room_code);
     setTimeout(() => setCopied(null), 2000);
   };

@@ -24,6 +24,9 @@ async function request(method, path, body) {
 export const createMeeting = (name) =>
   request("POST", "/api/v1/public/meetings", { name });
 
+export const listMeetings = () =>
+  request("GET", "/api/v1/public/meetings");
+
 export const getMeeting = (roomCode) =>
   request("GET", `/api/v1/public/meetings/${roomCode}`);
 
