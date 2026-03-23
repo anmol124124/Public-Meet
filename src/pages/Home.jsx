@@ -2,6 +2,15 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createMeeting, getHostToken, isLoggedIn, listMeetings } from "../api";
 
+const DEFAULT_SETTINGS = {
+  require_approval:             true,
+  allow_participants_see_others: true,
+  allow_participant_admit:       false,
+  allow_chat:                   true,
+  allow_screen_share:           true,
+  allow_unmute_self:            true,
+};
+
 export default function Home() {
   const [meetingName, setMeetingName] = useState("");
   const [loading, setLoading]         = useState(false);
@@ -9,7 +18,12 @@ export default function Home() {
   const [meetings, setMeetings]       = useState([]);
   const [activeTab, setActiveTab]     = useState("upcoming");
   const [copied, setCopied]           = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings]         = useState({ ...DEFAULT_SETTINGS });
   const navigate = useNavigate();
+
+  const toggleSetting = (key) =>
+    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
 
   useEffect(() => {
     if (!isLoggedIn()) return;
@@ -24,7 +38,7 @@ export default function Home() {
     setLoading(true);
     setError("");
     try {
-      const data = await createMeeting(meetingName.trim());
+      const data = await createMeeting(meetingName.trim(), settings);
       setMeetings((prev) => [data, ...prev]);
       setMeetingName("");
       setActiveTab("upcoming");
@@ -99,6 +113,44 @@ export default function Home() {
           </form>
 
           {error && <p style={styles.heroError}>{error}</p>}
+
+          {/* ── Settings toggle ── */}
+          <button
+            type="button"
+            style={styles.settingsToggle}
+            onClick={() => setShowSettings((v) => !v)}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+              <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.1 7.1 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54a7.1 7.1 0 0 0-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54a7.1 7.1 0 0 0 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 0 1 8.4 12 3.6 3.6 0 0 1 12 8.4 3.6 3.6 0 0 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/>
+            </svg>
+            Meeting settings
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: "auto", transform: showSettings ? "rotate(180deg)" : "none", transition: "transform .2s" }}>
+              <path d="M7 10l5 5 5-5z"/>
+            </svg>
+          </button>
+
+          {showSettings && (
+            <div style={styles.settingsPanel}>
+              {[
+                { key: "require_approval",             label: "Require host approval to join",        desc: "Guests wait for host to admit them" },
+                { key: "allow_participants_see_others", label: "Participants can see each other",      desc: "Show participant list to everyone" },
+                { key: "allow_participant_admit",       label: "Participants can admit others",        desc: "Any participant can approve join requests" },
+                { key: "allow_chat",                   label: "Enable chat",                          desc: "Allow in-meeting text messages" },
+                { key: "allow_screen_share",           label: "Enable screen sharing",                desc: "Allow participants to share their screen" },
+                { key: "allow_unmute_self",            label: "Participants can unmute themselves",   desc: "Allow participants to turn on their mic" },
+              ].map(({ key, label, desc }) => (
+                <div key={key} style={styles.settingRow} onClick={() => toggleSetting(key)}>
+                  <div style={styles.settingInfo}>
+                    <div style={styles.settingLabel}>{label}</div>
+                    <div style={styles.settingDesc}>{desc}</div>
+                  </div>
+                  <div style={{ ...styles.toggle, background: settings[key] ? "#1a73e8" : "rgba(255,255,255,.2)" }}>
+                    <div style={{ ...styles.toggleKnob, transform: settings[key] ? "translateX(20px)" : "translateX(2px)" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <p style={styles.heroHint}>
             Or share a meeting link with guests — they join with just their name, no sign-up required.
@@ -464,5 +516,70 @@ const styles = {
     fontSize: "13px",
     color: "#5f6368",
     lineHeight: 1.5,
+  },
+
+  settingsToggle: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    background: "rgba(255,255,255,.08)",
+    border: "1px solid rgba(255,255,255,.18)",
+    borderRadius: "8px",
+    color: "rgba(255,255,255,.75)",
+    fontSize: "13px",
+    fontWeight: "500",
+    padding: "8px 14px",
+    cursor: "pointer",
+    margin: "0 auto 16px",
+    width: "100%",
+    maxWidth: "560px",
+  },
+  settingsPanel: {
+    background: "rgba(255,255,255,.06)",
+    border: "1px solid rgba(255,255,255,.12)",
+    borderRadius: "12px",
+    padding: "4px 0",
+    maxWidth: "560px",
+    margin: "0 auto 16px",
+    width: "100%",
+  },
+  settingRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "12px 16px",
+    cursor: "pointer",
+    gap: "16px",
+    borderBottom: "1px solid rgba(255,255,255,.07)",
+  },
+  settingInfo: {
+    textAlign: "left",
+  },
+  settingLabel: {
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#e8eaed",
+    marginBottom: "2px",
+  },
+  settingDesc: {
+    fontSize: "11px",
+    color: "rgba(255,255,255,.45)",
+  },
+  toggle: {
+    width: "42px",
+    height: "24px",
+    borderRadius: "12px",
+    position: "relative",
+    flexShrink: 0,
+    transition: "background .2s",
+  },
+  toggleKnob: {
+    position: "absolute",
+    top: "2px",
+    width: "20px",
+    height: "20px",
+    borderRadius: "50%",
+    background: "#fff",
+    transition: "transform .2s",
   },
 };
