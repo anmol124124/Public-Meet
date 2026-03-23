@@ -37,7 +37,7 @@ export default function Room() {
     script.async = true;
 
     script.onload = () => {
-      if (!containerRef.current) return;
+      if (!containerRef.current || apiRef.current) return; // prevent double-init (React StrictMode)
       // Pre-seed name only for the host (so the SDK skips its name prompt for hosts)
       // Guests enter their name in the SDK lobby
       if (session.isHost && session.name) {
@@ -60,7 +60,11 @@ export default function Room() {
     };
 
     document.head.appendChild(script);
-    return () => { document.head.removeChild(script); };
+    return () => {
+      document.head.removeChild(script);
+      // Silently close WS without triggering onLeave navigation
+      if (apiRef.current) { apiRef.current._ws?.close(); apiRef.current = null; }
+    };
   }, []);
 
   return (
