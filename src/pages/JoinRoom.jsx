@@ -5,7 +5,7 @@ import { getMeeting, getGuestToken } from "../api";
 /**
  * Join page — shown for both guests (shared link) and hosts (Start button).
  * Hosts arrive with { hostToken, hostName } in location.state — name is pre-filled.
- * Guests just enter their name and get a guest token.
+ * Guests see only a "Join Now" button — the SDK lobby collects their name.
  */
 export default function JoinRoom() {
   const { roomCode } = useParams();
@@ -29,26 +29,22 @@ export default function JoinRoom() {
 
   const joinNow = async (e) => {
     e.preventDefault();
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError("Please enter your name.");
-      return;
-    }
     setLoading(true);
     setError("");
     try {
       // Host — token already fetched via startMeeting, go straight to room
       if (hostToken) {
+        const trimmedName = name.trim() || hostName;
         navigate(`/${roomCode}/room`, {
           state: { token: hostToken, name: trimmedName, isHost: true },
         });
         return;
       }
 
-      // Guest flow — any other user enters with a guest token
-      const { token } = await getGuestToken(roomCode, trimmedName);
+      // Guest — get token with placeholder; SDK lobby collects the real name
+      const { token } = await getGuestToken(roomCode, "Guest");
       navigate(`/${roomCode}/room`, {
-        state: { token, name: trimmedName, isHost: false },
+        state: { token, isHost: false },
       });
     } catch (err) {
       setError(err.message);
@@ -95,18 +91,23 @@ export default function JoinRoom() {
 
         <form onSubmit={joinNow} style={styles.form}>
           {error && <p style={styles.error}>{error}</p>}
-          <div>
-            <label style={styles.label}>Your name</label>
-            <input
-              style={styles.input}
-              type="text"
-              placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={60}
-              autoFocus
-            />
-          </div>
+
+          {/* Name input only for host — guests enter name in the SDK lobby */}
+          {hostToken && (
+            <div>
+              <label style={styles.label}>Your name</label>
+              <input
+                style={styles.input}
+                type="text"
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={60}
+                autoFocus
+              />
+            </div>
+          )}
+
           <button
             type="submit"
             style={{ ...styles.btn, opacity: loading ? 0.5 : 1 }}
