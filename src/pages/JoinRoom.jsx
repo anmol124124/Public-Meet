@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { getMeeting, getGuestToken, getHostToken, isLoggedIn } from "../api";
+import { getMeeting, getGuestToken } from "../api";
 
 /**
  * Join page — shown for both guests (shared link) and hosts (Start button).
@@ -37,7 +37,7 @@ export default function JoinRoom() {
     setLoading(true);
     setError("");
     try {
-      // Host — token already fetched, go straight to room
+      // Host — token already fetched via startMeeting, go straight to room
       if (hostToken) {
         navigate(`/${roomCode}/room`, {
           state: { token: hostToken, name: trimmedName, isHost: true },
@@ -45,19 +45,7 @@ export default function JoinRoom() {
         return;
       }
 
-      // Logged-in user trying to join someone else's meeting — try host token first
-      if (isLoggedIn()) {
-        try {
-          const { token, name: hName } = await getHostToken(roomCode);
-          navigate(`/${roomCode}/room`, {
-            state: { token, name: hName, isHost: true },
-          });
-          return;
-        } catch {
-          // Not the creator — fall through to guest flow
-        }
-      }
-
+      // Guest flow — any other user enters with a guest token
       const { token } = await getGuestToken(roomCode, trimmedName);
       navigate(`/${roomCode}/room`, {
         state: { token, name: trimmedName, isHost: false },
