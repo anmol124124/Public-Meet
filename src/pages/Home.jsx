@@ -53,8 +53,8 @@ export default function Home() {
     if (isLoggedIn()) {
       try {
         const { token, name } = await getHostToken(roomCode);
-        navigate(`/${roomCode}/room`, {
-          state: { token, name, isHost: true },
+        navigate(`/${roomCode}`, {
+          state: { hostToken: token, hostName: name },
         });
       } catch (err) {
         setError(err.message);

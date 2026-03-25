@@ -1,19 +1,25 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { getMeeting, getGuestToken, getHostToken, isLoggedIn } from "../api";
 
 /**
- * Guest join page — shown when someone clicks a shared meeting link.
- * Just asks for a name, no signup needed.
+ * Join page — shown for both guests (shared link) and hosts (Start button).
+ * Hosts arrive with { hostToken, hostName } in location.state — name is pre-filled.
+ * Guests just enter their name and get a guest token.
  */
 export default function JoinRoom() {
   const { roomCode } = useParams();
   const navigate     = useNavigate();
+  const location     = useLocation();
+
+  const hostToken = location.state?.hostToken || null;
+  const hostName  = location.state?.hostName  || "";
 
   const [meeting, setMeeting]   = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
+  const [name, setName]         = useState(hostName);
 
   useEffect(() => {
     getMeeting(roomCode)
@@ -23,24 +29,38 @@ export default function JoinRoom() {
 
   const joinNow = async (e) => {
     e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("Please enter your name.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      // If logged in, try host token first (user may be the meeting creator)
+      // Host — token already fetched, go straight to room
+      if (hostToken) {
+        navigate(`/${roomCode}/room`, {
+          state: { token: hostToken, name: trimmedName, isHost: true },
+        });
+        return;
+      }
+
+      // Logged-in user trying to join someone else's meeting — try host token first
       if (isLoggedIn()) {
         try {
-          const { token, name } = await getHostToken(roomCode);
+          const { token, name: hName } = await getHostToken(roomCode);
           navigate(`/${roomCode}/room`, {
-            state: { token, name, isHost: true },
+            state: { token, name: hName, isHost: true },
           });
           return;
         } catch {
           // Not the creator — fall through to guest flow
         }
       }
-      const { token } = await getGuestToken(roomCode, "Guest");
+
+      const { token } = await getGuestToken(roomCode, trimmedName);
       navigate(`/${roomCode}/room`, {
-        state: { token, isHost: false },
+        state: { token, name: trimmedName, isHost: false },
       });
     } catch (err) {
       setError(err.message);
@@ -87,12 +107,24 @@ export default function JoinRoom() {
 
         <form onSubmit={joinNow} style={styles.form}>
           {error && <p style={styles.error}>{error}</p>}
+          <div>
+            <label style={styles.label}>Your name</label>
+            <input
+              style={styles.input}
+              type="text"
+              placeholder="Enter your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={60}
+              autoFocus
+            />
+          </div>
           <button
             type="submit"
             style={{ ...styles.btn, opacity: loading ? 0.5 : 1 }}
             disabled={loading}
           >
-            {loading ? "Joining…" : "Join Meeting"}
+            {loading ? "Joining…" : "Join Now"}
           </button>
         </form>
 
@@ -147,9 +179,11 @@ const styles = {
     gap: "12px",
   },
   label: {
+    display: "block",
     fontSize: "14px",
     color: "#9aa0a6",
     fontWeight: "500",
+    marginBottom: "6px",
   },
   input: {
     background: "rgba(255,255,255,.07)",
@@ -159,6 +193,8 @@ const styles = {
     color: "#e8eaed",
     fontSize: "15px",
     width: "100%",
+    boxSizing: "border-box",
+    outline: "none",
   },
   btn: {
     background: "#1a73e8",
@@ -170,6 +206,7 @@ const styles = {
     fontWeight: "500",
     width: "100%",
     cursor: "pointer",
+    marginTop: "4px",
   },
   subtext: {
     fontSize: "14px",
