@@ -32,11 +32,16 @@ export default function Auth() {
 
       // If coming from a meeting → get host token and go to room
       if (roomCode) {
-        const { token } = await getHostToken(roomCode);
-        navigate(`/${roomCode}/room`, {
-          state: { token, name: name || email, isHost: true },
-          replace: true,
-        });
+        try {
+          const { token } = await getHostToken(roomCode);
+          navigate(`/${roomCode}/room`, {
+            state: { token, name: name || email, isHost: true },
+            replace: true,
+          });
+        } catch {
+          // Meeting not owned by this user (or stale URL) — go home
+          navigate("/", { replace: true });
+        }
       } else {
         navigate(redirectTo, { replace: true });
       }

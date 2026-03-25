@@ -27,6 +27,27 @@ export default function Home() {
 
   useEffect(() => {
     if (!isLoggedIn()) return;
+
+    // Auto-create a meeting that was started before login
+    const pendingName     = sessionStorage.getItem("pending_meeting_name");
+    const pendingSettings = sessionStorage.getItem("pending_meeting_settings");
+    if (pendingName) {
+      sessionStorage.removeItem("pending_meeting_name");
+      sessionStorage.removeItem("pending_meeting_settings");
+      const s = pendingSettings ? JSON.parse(pendingSettings) : DEFAULT_SETTINGS;
+      createMeeting(pendingName, s)
+        .then((data) => {
+          setMeetings((prev) => [data, ...prev]);
+          setActiveTab("upcoming");
+          // Go straight to the join page as host
+          return getHostToken(data.room_code).then(({ token, name }) => {
+            navigate(`/${data.room_code}`, { state: { hostToken: token, hostName: name } });
+          });
+        })
+        .catch((err) => setError(err.message));
+      return;
+    }
+
     listMeetings()
       .then((data) => setMeetings(data))
       .catch(() => {/* silently ignore — user will still see empty state */});
@@ -35,6 +56,15 @@ export default function Home() {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!meetingName.trim()) return;
+
+    // Not logged in — save intent and go through auth first
+    if (!isLoggedIn()) {
+      sessionStorage.setItem("pending_meeting_name",     meetingName.trim());
+      sessionStorage.setItem("pending_meeting_settings", JSON.stringify(settings));
+      navigate("/auth?redirect=/");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
