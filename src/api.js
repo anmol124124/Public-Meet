@@ -56,3 +56,8 @@ export const isLoggedIn = () => !!localStorage.getItem("access_token");
 
 export const backendWsUrl = () =>
   BASE.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
+
+// ── Embed SDK join (public — no auth) ──────────────────────────────────────
+
+export const getSdkGuestInfo = (roomName) =>
+  request("GET", `/api/v1/projects/sdk-join/${roomName}`);
