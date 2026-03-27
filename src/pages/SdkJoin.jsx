@@ -2,24 +2,19 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getSdkGuestInfo, backendWsUrl } from "../api";
 
-/**
- * Guest entry point for embed-hosted meetings.
- * URL: /sdk/join/:roomName
- *
- * Fetches a guest token from the backend (no auth required),
- * then launches the WebRTC SDK in knock-to-join (guest) mode.
- */
 export default function SdkJoin() {
   const { roomName }  = useParams();
   const navigate      = useNavigate();
   const containerRef  = useRef(null);
 
-  const [info, setInfo]       = useState(null);
-  const [error, setError]     = useState("");
-  const [joined, setJoined]   = useState(false);
+  const SESSION_KEY = `wrtc_guest_session_${roomName}`;
+
+  const [info, setInfo]         = useState(null);
+  const [error, setError]       = useState("");
+  const [joined, setJoined]     = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
 
-  // Load the SDK script from the backend once
+  // Load SDK script
   useEffect(() => {
     if (window.WebRTCMeetingAPI) { setSdkReady(true); return; }
     const base = window.BACKEND_URL || import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
@@ -31,28 +26,47 @@ export default function SdkJoin() {
     document.head.appendChild(script);
   }, []);
 
+  // Fetch meeting info
   useEffect(() => {
     getSdkGuestInfo(roomName)
       .then(setInfo)
       .catch(() => setError("Meeting not found or no longer available."));
   }, [roomName]);
 
-  const joinNow = () => {
-    if (!info || !sdkReady) return;
+  // Auto-rejoin if refreshed mid-meeting
+  useEffect(() => {
+    if (!sdkReady) return;
+    const saved = sessionStorage.getItem(SESSION_KEY);
+    if (saved) {
+      try {
+        const { guestToken } = JSON.parse(saved);
+        launchSdk(roomName, guestToken);
+      } catch {
+        sessionStorage.removeItem(SESSION_KEY);
+      }
+    }
+  }, [sdkReady]);
 
+  function launchSdk(room, token) {
     setJoined(true);
-
-    // Small timeout so the container div is visible before SDK mounts
     setTimeout(() => {
-      const wsBase = backendWsUrl();
       new window.WebRTCMeetingAPI({
-        serverUrl:  wsBase,
-        roomName:   info.room_name,
-        token:      info.guest_token,
+        serverUrl:  backendWsUrl(),
+        roomName:   room,
+        token:      token,
         parentNode: containerRef.current,
-        onLeave:    () => navigate("/"),
+        onLeave:    () => {
+          sessionStorage.removeItem(SESSION_KEY);
+          navigate("/");
+        },
       });
     }, 50);
+  }
+
+  const joinNow = () => {
+    if (!info || !sdkReady) return;
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ guestToken: info.guest_token }));
+    launchSdk(info.room_name, info.guest_token);
   };
 
   if (joined) {
