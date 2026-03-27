@@ -9,10 +9,14 @@ export default function SdkJoin() {
 
   const SESSION_KEY = `wrtc_guest_session_${roomName}`;
 
-  const [info, setInfo]         = useState(null);
-  const [error, setError]       = useState("");
-  const [joined, setJoined]     = useState(false);
-  const [sdkReady, setSdkReady] = useState(false);
+  // True if the user refreshed mid-meeting (sessionStorage has their token)
+  const [isRejoining] = useState(() => !!sessionStorage.getItem(`wrtc_guest_session_${roomName}`));
+
+  const [info, setInfo]               = useState(null);
+  const [error, setError]             = useState("");
+  const [joined, setJoined]           = useState(false);
+  const [sdkReady, setSdkReady]       = useState(false);
+  const [refreshWarning, setRefreshWarning] = useState(false);
 
   // Load SDK script
   useEffect(() => {
@@ -40,24 +44,28 @@ export default function SdkJoin() {
     if (saved) {
       try {
         const { guestToken } = JSON.parse(saved);
-        launchSdk(roomName, guestToken);
+        // Show refresh warning banner for 5 seconds
+        setRefreshWarning(true);
+        setTimeout(() => setRefreshWarning(false), 5000);
+        launchSdk(roomName, guestToken, true);
       } catch {
         sessionStorage.removeItem(SESSION_KEY);
       }
     }
   }, [sdkReady]);
 
-  function launchSdk(room, token) {
+  function launchSdk(room, token, reconnect = false) {
     setJoined(true);
     setTimeout(() => {
       new window.WebRTCMeetingAPI({
         serverUrl:  backendWsUrl(),
         roomName:   room,
         token:      token,
+        reconnect:  reconnect,
         parentNode: containerRef.current,
         onLeave:    () => {
-          sessionStorage.removeItem(SESSION_KEY);
-          navigate("/");
+          // Keep session storage so rejoin can reuse the same token (same identity → no re-approval)
+          navigate(`/sdk/leave/${room}`);
         },
       });
     }, 50);
@@ -70,7 +78,39 @@ export default function SdkJoin() {
   };
 
   if (joined) {
-    return <div ref={containerRef} style={styles.fullscreen} />;
+    return (
+      <div style={styles.fullscreen}>
+        <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+        {refreshWarning && (
+          <div style={styles.refreshBanner}>
+            Avoid refreshing during meetings for a smoother experience
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Refresh case: show reconnecting screen while SDK loads
+  if (isRejoining && !joined) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.card}>
+          <div style={styles.brand}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#1a73e8">
+              <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+            </svg>
+            <span style={styles.brandName}>Meet</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "8px 0" }}>
+            <div style={styles.spinner} />
+            <p style={{ ...styles.heading, fontSize: "18px", textAlign: "center" }}>Rejoining meeting…</p>
+            <p style={{ ...styles.subtext, textAlign: "center", marginBottom: 0 }}>
+              Please wait, reconnecting you to the meeting.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -127,6 +167,21 @@ const styles = {
     inset: 0,
     background: "#202124",
   },
+  refreshBanner: {
+    position: "fixed",
+    top: "16px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "rgba(251,188,4,0.95)",
+    color: "#202124",
+    padding: "10px 20px",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "500",
+    zIndex: 9999,
+    pointerEvents: "none",
+    whiteSpace: "nowrap",
+  },
   card: {
     background: "#2d2e31",
     borderRadius: "16px",
@@ -175,5 +230,6 @@ const styles = {
     border: "3px solid rgba(255,255,255,.1)",
     borderTop: "3px solid #1a73e8",
     borderRadius: "50%",
+    animation: "spin 0.8s linear infinite",
   },
 };
