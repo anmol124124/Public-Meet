@@ -17,6 +17,7 @@ export default function SdkJoin() {
   const [joined, setJoined]           = useState(false);
   const [sdkReady, setSdkReady]       = useState(false);
   const [refreshWarning, setRefreshWarning] = useState(false);
+  const [mauBlocked, setMauBlocked]   = useState(false);
 
   // Load SDK script
   useEffect(() => {
@@ -43,18 +44,18 @@ export default function SdkJoin() {
     const saved = sessionStorage.getItem(SESSION_KEY);
     if (saved) {
       try {
-        const { guestToken } = JSON.parse(saved);
+        const { guestToken, logoUrl = "" } = JSON.parse(saved);
         // Show refresh warning banner for 5 seconds
         setRefreshWarning(true);
         setTimeout(() => setRefreshWarning(false), 5000);
-        launchSdk(roomName, guestToken, true);
+        launchSdk(roomName, guestToken, true, logoUrl);
       } catch {
         sessionStorage.removeItem(SESSION_KEY);
       }
     }
   }, [sdkReady]);
 
-  function launchSdk(room, token, reconnect = false) {
+  function launchSdk(room, token, reconnect = false, logoUrl = "") {
     setJoined(true);
     setTimeout(() => {
       new window.WebRTCMeetingAPI({
@@ -62,8 +63,14 @@ export default function SdkJoin() {
         roomName:   room,
         token:      token,
         reconnect:  reconnect,
+        logoUrl:    logoUrl,
         parentNode: containerRef.current,
-        onLeave:    () => {
+        onLeave:    (reason) => {
+          if (reason === 'mau_limit_reached') {
+            setJoined(false);
+            setMauBlocked(true);
+            return;
+          }
           // Keep session storage so rejoin can reuse the same token (same identity → no re-approval)
           navigate(`/sdk/leave/${room}`);
         },
@@ -73,9 +80,38 @@ export default function SdkJoin() {
 
   const joinNow = () => {
     if (!info || !sdkReady) return;
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ guestToken: info.guest_token }));
-    launchSdk(info.room_name, info.guest_token);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ guestToken: info.guest_token, logoUrl: info.logo_url || "" }));
+    launchSdk(info.room_name, info.guest_token, false, info.logo_url || "");
   };
+
+  if (mauBlocked) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.card}>
+          <div style={{ fontSize: "48px", marginBottom: "20px", textAlign: "center" }}>🚫</div>
+          <h2 style={{ ...styles.heading, textAlign: "center" }}>Unable to join meeting</h2>
+          <p style={{ ...styles.subtext, textAlign: "center" }}>
+            This meeting has reached its maximum number of monthly participants.
+            Please contact the meeting admin to resolve this.
+          </p>
+          <div style={{
+            background: "rgba(234,67,53,0.08)",
+            border: "1px solid rgba(234,67,53,0.25)",
+            borderRadius: "10px",
+            padding: "14px 16px",
+            fontSize: "13px",
+            color: "#f28b82",
+            lineHeight: "1.6",
+            marginBottom: "28px",
+            textAlign: "center",
+          }}>
+            The host's monthly active user (MAU) limit has been reached.
+          </div>
+          <button style={styles.btn} onClick={() => navigate("/")}>Go home</button>
+        </div>
+      </div>
+    );
+  }
 
   if (joined) {
     return (
