@@ -3,12 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { createMeeting, getHostToken, isLoggedIn, listMeetings } from "../api";
 
 const DEFAULT_SETTINGS = {
-  require_approval:             true,
-  allow_participants_see_others: true,
+  require_approval:              true,
+  allow_participants_see_others: true,   // always on
   allow_participant_admit:       false,
-  allow_chat:                   true,
-  allow_screen_share:           true,
-  allow_unmute_self:            true,
+  allow_chat:                    true,   // always on
+  allow_screen_share:            true,   // always on
+  allow_unmute_self:             true,   // always on
 };
 
 export default function Home() {
@@ -162,14 +162,10 @@ export default function Home() {
           {showSettings && (
             <div style={styles.settingsPanel}>
               {[
-                { key: "require_approval",             label: "Require host approval to join",        desc: "Guests wait for host to admit them" },
-                { key: "allow_participants_see_others", label: "Participants can see each other",      desc: "Show participant list to everyone" },
-                { key: "allow_participant_admit",       label: "Participants can admit others",        desc: "Any participant can approve join requests" },
-                { key: "allow_chat",                   label: "Enable chat",                          desc: "Allow in-meeting text messages" },
-                { key: "allow_screen_share",           label: "Enable screen sharing",                desc: "Allow participants to share their screen" },
-                { key: "allow_unmute_self",            label: "Participants can unmute themselves",   desc: "Allow participants to turn on their mic" },
+                { key: "require_approval",       label: "Require host approval to join",  desc: "Guests wait for host to admit them" },
+                { key: "allow_participant_admit", label: "Participants can admit each other", desc: "Any participant can approve join requests" },
               ].map(({ key, label, desc }) => (
-                <div key={key} style={styles.settingRow} onClick={() => toggleSetting(key)}>
+                <div key={key} style={{ ...styles.settingRow, borderBottom: "none" }} onClick={() => toggleSetting(key)}>
                   <div style={styles.settingInfo}>
                     <div style={styles.settingLabel}>{label}</div>
                     <div style={styles.settingDesc}>{desc}</div>
