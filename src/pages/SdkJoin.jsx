@@ -135,7 +135,7 @@ export default function SdkJoin() {
             <svg width="28" height="28" viewBox="0 0 24 24" fill="#1a73e8">
               <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
             </svg>
-            <span style={styles.brandName}>Meet</span>
+            <span style={styles.brandName}>RoomLy</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "8px 0" }}>
             <div style={styles.spinner} />
@@ -168,7 +168,7 @@ export default function SdkJoin() {
             <svg width="28" height="28" viewBox="0 0 24 24" fill="#1a73e8">
               <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
             </svg>
-            <span style={styles.brandName}>Meet</span>
+            <span style={styles.brandName}>RoomLy</span>
           </div>
 
           <h1 style={styles.heading}>{info.name}</h1>
