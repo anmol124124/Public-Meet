@@ -43,11 +43,13 @@ export default function Room() {
       if (session.isHost && session.name) {
         sessionStorage.setItem(`wrtc_name_${roomCode}`, session.name);
       }
+      const dashboardBase = (window.DASHBOARD_URL || import.meta.env.VITE_DASHBOARD_URL || 'http://localhost:5174').replace(/\/$/, '');
       apiRef.current = new window.WebRTCMeetingAPI({
-        serverUrl:  backendWsUrl(),
-        roomName:   roomCode,
-        token:      session.token,
-        parentNode: containerRef.current,
+        serverUrl:      backendWsUrl(),
+        roomName:       roomCode,
+        token:          session.token,
+        parentNode:     containerRef.current,
+        upgradePlanUrl: dashboardBase + '/?upgrade=1',
         onLeave: () => navigate(`/${roomCode}/left`),
       });
     };
