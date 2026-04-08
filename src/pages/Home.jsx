@@ -1,6 +1,42 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createMeeting, getHostToken, isLoggedIn, listMeetings } from "../api";
+
+const TZ_OPTIONS = [
+  "UTC",
+  "Asia/Kolkata",
+  "Asia/Dubai",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Sao_Paulo",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+];
+
+function gcalUrl(name, dateStr, timeStr, tz, joinUrl) {
+  const pad = (n) => String(n).padStart(2, "0");
+  const [h, m] = timeStr.split(":").map(Number);
+  const endH = pad((h + 1) % 24);
+  const d = dateStr.replace(/-/g, "");
+  const start = `${d}T${pad(h)}${pad(m)}00`;
+  const end   = `${d}T${endH}${pad(m)}00`;
+  const p = new URLSearchParams({
+    action:   "TEMPLATE",
+    text:     name,
+    dates:    `${start}/${end}`,
+    ctz:      tz,
+    details:  `Join RoomLy meeting: ${joinUrl}`,
+    location: joinUrl,
+  });
+  return `https://calendar.google.com/calendar/render?${p}`;
+}
 
 const DEFAULT_SETTINGS = {
   require_approval:              true,
@@ -20,9 +56,21 @@ export default function Home() {
   const [copied, setCopied]           = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings]         = useState({ ...DEFAULT_SETTINGS });
-  const [page, setPage]                 = useState(1);
+  const [page, setPage]               = useState(1);
+  const [pageSched, setPageSched]     = useState(1);
   const PAGE_SIZE = 5;
   const navigate = useNavigate();
+
+  // Schedule-related state
+  const [showActions, setShowActions]   = useState(false);   // show action buttons after "Create Meeting"
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [schedDate, setSchedDate]       = useState("");
+  const [schedTime, setSchedTime]       = useState("09:00");
+  const [schedTz, setSchedTz]           = useState("Asia/Kolkata");
+  const [inviteeInput, setInviteeInput] = useState("");
+  const [invitees, setInvitees]         = useState([]);
+  const [scheduleSuccess, setScheduleSuccess] = useState(null);
+  const inviteeRef = useRef(null);
 
   const toggleSetting = (key) =>
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -55,11 +103,52 @@ export default function Home() {
       .catch(() => {/* silently ignore — user will still see empty state */});
   }, []);
 
-  const handleCreate = async (e) => {
+  const handleCreate = (e) => {
     e.preventDefault();
     if (!meetingName.trim()) return;
+    setShowActions(true);
+    setShowScheduleForm(false);
+    setError("");
+  };
 
-    // Not logged in — save intent and go through auth first
+  const handleInstantMeeting = async () => {
+    if (!isLoggedIn()) {
+      sessionStorage.setItem("pending_meeting_name",     meetingName.trim());
+      sessionStorage.setItem("pending_meeting_settings", JSON.stringify(settings));
+      navigate("/auth?redirect=/");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const data = await createMeeting(meetingName.trim(), settings);
+      setMeetings((prev) => [data, ...prev]);
+      setActiveTab("instant");
+      setPage(1);
+      // Navigate straight to the room as host
+      const { token, name } = await getHostToken(data.room_code);
+      navigate(`/${data.room_code}`, { state: { hostToken: token, hostName: name } });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addInvitee = () => {
+    const email = inviteeInput.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (invitees.includes(email)) { setInviteeInput(""); return; }
+    setInvitees((prev) => [...prev, email]);
+    setInviteeInput("");
+    inviteeRef.current?.focus();
+  };
+
+  const handleSchedule = async (e) => {
+    e.preventDefault();
+    if (!meetingName.trim()) return;
+    if (!schedDate || !schedTime) { setError("Please select a date and time."); return; }
+
     if (!isLoggedIn()) {
       sessionStorage.setItem("pending_meeting_name",     meetingName.trim());
       sessionStorage.setItem("pending_meeting_settings", JSON.stringify(settings));
@@ -70,11 +159,32 @@ export default function Home() {
     setLoading(true);
     setError("");
     try {
-      const data = await createMeeting(meetingName.trim(), settings);
+      // Auto-add any email still typed in the input field
+      const pendingEmail = inviteeInput.trim().toLowerCase();
+      const finalInvitees = (pendingEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pendingEmail) && !invitees.includes(pendingEmail))
+        ? [...invitees, pendingEmail]
+        : [...invitees];
+
+      // Send raw local datetime string + timezone — backend converts to UTC using zoneinfo
+      const localDateTimeStr = `${schedDate}T${schedTime}:00`;
+      const data = await createMeeting(meetingName.trim(), settings, localDateTimeStr, finalInvitees, schedTz);
       setMeetings((prev) => [data, ...prev]);
+      setScheduleSuccess({
+        name: meetingName.trim(),
+        date: schedDate,
+        time: schedTime,
+        tz: schedTz,
+        invitees: finalInvitees,
+        joinUrl: data.url,
+      });
       setMeetingName("");
-      setActiveTab("upcoming");
-      setPage(1);
+      setInvitees([]);
+      setSchedDate("");
+      setInviteeInput("");
+      setShowActions(false);
+      setShowScheduleForm(false);
+      setActiveTab("scheduled");
+      setPageSched(1);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -122,13 +232,37 @@ export default function Home() {
           <h1 style={styles.heroTitle}>Secure and high quality meetings</h1>
           <p style={styles.heroSub}>Connect with anyone, anywhere — no account needed to join.</p>
 
+          {/* ── Schedule success banner ── */}
+          {scheduleSuccess && (
+            <div style={styles.successBanner}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34a853" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12"/></svg>
+              <div style={{ flex: 1 }}>
+                <div>
+                  <strong>{scheduleSuccess.name}</strong> scheduled for {scheduleSuccess.date} at {scheduleSuccess.time} ({scheduleSuccess.tz})
+                  {scheduleSuccess.invitees.length > 0 && ` — invites sent to ${scheduleSuccess.invitees.length} recipient${scheduleSuccess.invitees.length > 1 ? "s" : ""}`}
+                </div>
+                <a
+                  href={gcalUrl(scheduleSuccess.name, scheduleSuccess.date, scheduleSuccess.time, scheduleSuccess.tz, scheduleSuccess.joinUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={styles.gcalBtn}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  Add to Google Calendar
+                </a>
+              </div>
+              <button style={styles.successClose} onClick={() => setScheduleSuccess(null)}>✕</button>
+            </div>
+          )}
+
+          {/* ── Step 1: Title input ── */}
           <form onSubmit={handleCreate} style={styles.inputRow}>
             <input
               style={styles.heroInput}
               type="text"
               placeholder="Enter a meeting name or topic…"
               value={meetingName}
-              onChange={(e) => setMeetingName(e.target.value)}
+              onChange={(e) => { setMeetingName(e.target.value); setShowActions(false); setShowScheduleForm(false); }}
               maxLength={80}
               autoFocus
             />
@@ -136,21 +270,129 @@ export default function Home() {
               type="submit"
               style={{
                 ...styles.heroBtn,
-                opacity: !meetingName.trim() || loading ? 0.6 : 1,
-                cursor: !meetingName.trim() || loading ? "default" : "pointer",
+                opacity: !meetingName.trim() ? 0.6 : 1,
+                cursor: !meetingName.trim() ? "default" : "pointer",
               }}
-              disabled={!meetingName.trim() || loading}
+              disabled={!meetingName.trim()}
             >
-              {loading ? "Creating…" : "Start meeting"}
+              Create Meeting
             </button>
           </form>
 
-          {error && <p style={styles.heroError}>{error}</p>}
+          {/* ── Step 2: Action buttons ── */}
+          {showActions && (
+            <div style={styles.actionButtons}>
+              <button
+                style={{ ...styles.actionBtn, ...styles.actionBtnInstant, opacity: loading ? 0.6 : 1 }}
+                disabled={loading}
+                onClick={handleInstantMeeting}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                </svg>
+                {loading ? "Starting…" : "Start Instant Meeting"}
+              </button>
+              <button
+                style={{ ...styles.actionBtn, ...styles.actionBtnSchedule }}
+                onClick={() => { setShowScheduleForm((v) => !v); setError(""); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                </svg>
+                Schedule Meeting
+              </button>
+            </div>
+          )}
+
+          {/* ── Step 2b: Schedule form (inline, expands below) ── */}
+          {showActions && showScheduleForm && (
+            <form onSubmit={handleSchedule} style={styles.scheduleForm}>
+              <div style={styles.schedRow}>
+                <div style={styles.schedField}>
+                  <label style={styles.schedLabel}>Date</label>
+                  <input
+                    style={styles.schedInput}
+                    type="date"
+                    value={schedDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => setSchedDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div style={styles.schedField}>
+                  <label style={styles.schedLabel}>Time</label>
+                  <input
+                    style={styles.schedInput}
+                    type="time"
+                    value={schedTime}
+                    onChange={(e) => setSchedTime(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={styles.schedField}>
+                <label style={styles.schedLabel}>Time Zone</label>
+                <select
+                  style={{ ...styles.schedInput, cursor: "pointer" }}
+                  value={schedTz}
+                  onChange={(e) => setSchedTz(e.target.value)}
+                >
+                  {TZ_OPTIONS.map((tz) => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={styles.schedField}>
+                <label style={styles.schedLabel}>Invite by email <span style={{ color: "rgba(255,255,255,.35)", fontWeight: 400 }}>(optional)</span></label>
+                <div style={styles.inviteeInputRow}>
+                  <input
+                    ref={inviteeRef}
+                    style={{ ...styles.schedInput, flex: 1, marginBottom: 0 }}
+                    type="email"
+                    placeholder="name@example.com"
+                    value={inviteeInput}
+                    onChange={(e) => setInviteeInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addInvitee(); } }}
+                  />
+                  <button type="button" style={styles.addInviteeBtn} onClick={addInvitee}>Add</button>
+                </div>
+                {invitees.length > 0 && (
+                  <div style={styles.inviteeTags}>
+                    {invitees.map((em) => (
+                      <span key={em} style={styles.inviteeTag}>
+                        {em}
+                        <button type="button" style={styles.inviteeTagRemove}
+                          onClick={() => setInvitees((prev) => prev.filter((x) => x !== em))}>✕</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {error && <p style={styles.heroError}>{error}</p>}
+
+              <button
+                type="submit"
+                style={{
+                  ...styles.schedSubmitBtn,
+                  opacity: !schedDate || loading ? 0.6 : 1,
+                  cursor: !schedDate || loading ? "default" : "pointer",
+                }}
+                disabled={!schedDate || loading}
+              >
+                {loading ? "Scheduling…" : invitees.length > 0 ? `Schedule & Send ${invitees.length} Invite${invitees.length > 1 ? "s" : ""}` : "Schedule Meeting"}
+              </button>
+            </form>
+          )}
+
+          {error && !showScheduleForm && <p style={styles.heroError}>{error}</p>}
 
           {/* ── Settings toggle ── */}
           <button
             type="button"
-            style={styles.settingsToggle}
+            style={{ ...styles.settingsToggle, marginTop: "16px" }}
             onClick={() => setShowSettings((v) => !v)}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
@@ -191,10 +433,16 @@ export default function Home() {
       <div style={styles.panel}>
         <div style={styles.tabs}>
           <button
-            style={{ ...styles.tab, ...(activeTab === "upcoming" ? styles.tabActive : {}) }}
-            onClick={() => setActiveTab("upcoming")}
+            style={{ ...styles.tab, ...(activeTab === "instant" ? styles.tabActive : {}) }}
+            onClick={() => setActiveTab("instant")}
           >
-            Your meetings
+            Instant Meetings
+          </button>
+          <button
+            style={{ ...styles.tab, ...(activeTab === "scheduled" ? styles.tabActive : {}) }}
+            onClick={() => setActiveTab("scheduled")}
+          >
+            Scheduled Meetings
           </button>
           <button
             style={{ ...styles.tab, ...(activeTab === "how" ? styles.tabActive : {}) }}
@@ -204,17 +452,18 @@ export default function Home() {
           </button>
         </div>
 
-        {activeTab === "upcoming" && (() => {
-          const totalPages = Math.ceil(meetings.length / PAGE_SIZE);
-          const paginated  = meetings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-          return meetings.length === 0 ? (
+        {/* ── Instant meetings list ── */}
+        {activeTab === "instant" && (() => {
+          const list       = meetings.filter((m) => !m.scheduled_at);
+          const totalPages = Math.ceil(list.length / PAGE_SIZE);
+          const paginated  = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+          return list.length === 0 ? (
             <div style={styles.empty}>
               <svg style={styles.emptyIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <path d="M16 2v4M8 2v4M3 10h18" />
+                <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
               </svg>
-              <p style={styles.emptyText}>No meetings yet.</p>
-              <p style={styles.emptyHint}>Create one above — it will appear here.</p>
+              <p style={styles.emptyText}>No instant meetings yet.</p>
+              <p style={styles.emptyHint}>Create one above and click "Start Instant Meeting".</p>
             </div>
           ) : (
             <>
@@ -235,56 +484,92 @@ export default function Home() {
                     <div style={styles.itemActions}>
                       <button style={styles.copyBtn} onClick={() => copyLink(m)}>
                         {copied === m.room_code ? (
-                          <>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34a853" strokeWidth="2.5">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            Copied!
-                          </>
+                          <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34a853" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>Copied!</>
                         ) : (
-                          <>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
-                            </svg>
-                            Copy link
-                          </>
+                          <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy link</>
                         )}
                       </button>
-                      <button style={styles.startBtn} onClick={() => startMeeting(m.room_code)}>
-                        Start
-                      </button>
+                      <button style={styles.startBtn} onClick={() => startMeeting(m.room_code)}>Start</button>
                     </div>
                   </div>
                 ))}
               </div>
               {totalPages > 1 && (
                 <div style={styles.pagination}>
-                  <button
-                    style={{ ...styles.pageBtn, opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? "default" : "pointer" }}
-                    onClick={() => page > 1 && setPage(p => p - 1)}
-                    disabled={page === 1}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="15 18 9 12 15 6"/>
-                    </svg>
+                  <button style={{ ...styles.pageBtn, opacity: page === 1 ? 0.4 : 1 }} onClick={() => page > 1 && setPage(p => p - 1)} disabled={page === 1}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
                   </button>
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
-                    <button
-                      key={n}
-                      style={{ ...styles.pageBtn, ...(n === page ? styles.pageBtnActive : {}) }}
-                      onClick={() => setPage(n)}
-                    >
-                      {n}
-                    </button>
+                    <button key={n} style={{ ...styles.pageBtn, ...(n === page ? styles.pageBtnActive : {}) }} onClick={() => setPage(n)}>{n}</button>
                   ))}
-                  <button
-                    style={{ ...styles.pageBtn, opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? "default" : "pointer" }}
-                    onClick={() => page < totalPages && setPage(p => p + 1)}
-                    disabled={page === totalPages}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="9 18 15 12 9 6"/>
-                    </svg>
+                  <button style={{ ...styles.pageBtn, opacity: page === totalPages ? 0.4 : 1 }} onClick={() => page < totalPages && setPage(p => p + 1)} disabled={page === totalPages}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                </div>
+              )}
+            </>
+          );
+        })()}
+
+        {/* ── Scheduled meetings list ── */}
+        {activeTab === "scheduled" && (() => {
+          const list       = meetings.filter((m) => !!m.scheduled_at);
+          const totalPages = Math.ceil(list.length / PAGE_SIZE);
+          const paginated  = list.slice((pageSched - 1) * PAGE_SIZE, pageSched * PAGE_SIZE);
+          return list.length === 0 ? (
+            <div style={styles.empty}>
+              <svg style={styles.emptyIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+              </svg>
+              <p style={styles.emptyText}>No scheduled meetings yet.</p>
+              <p style={styles.emptyHint}>Create one above and click "Schedule Meeting".</p>
+            </div>
+          ) : (
+            <>
+              <div style={styles.list}>
+                {paginated.map((m) => (
+                  <div key={m.room_code} style={styles.item}>
+                    <div style={styles.itemLeft}>
+                      <div style={{ ...styles.itemIcon, background: "rgba(52,168,83,.12)" }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34a853" strokeWidth="2">
+                          <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div style={styles.itemName}>{m.name}</div>
+                        <div style={styles.itemCode}>
+                          {m.room_code}
+                          {m.scheduled_at && (
+                            <span style={{ marginLeft: "8px", color: "#34a853", fontFamily: "inherit" }}>
+                              · {new Date(m.scheduled_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={styles.itemActions}>
+                      <button style={styles.copyBtn} onClick={() => copyLink(m)}>
+                        {copied === m.room_code ? (
+                          <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34a853" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>Copied!</>
+                        ) : (
+                          <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy link</>
+                        )}
+                      </button>
+                      <button style={styles.startBtn} onClick={() => startMeeting(m.room_code)}>Start</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {totalPages > 1 && (
+                <div style={styles.pagination}>
+                  <button style={{ ...styles.pageBtn, opacity: pageSched === 1 ? 0.4 : 1 }} onClick={() => pageSched > 1 && setPageSched(p => p - 1)} disabled={pageSched === 1}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+                    <button key={n} style={{ ...styles.pageBtn, ...(n === pageSched ? styles.pageBtnActive : {}) }} onClick={() => setPageSched(n)}>{n}</button>
+                  ))}
+                  <button style={{ ...styles.pageBtn, opacity: pageSched === totalPages ? 0.4 : 1 }} onClick={() => pageSched < totalPages && setPageSched(p => p + 1)} disabled={pageSched === totalPages}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                   </button>
                 </div>
               )}
@@ -676,5 +961,189 @@ const styles = {
     borderRadius: "50%",
     background: "#fff",
     transition: "transform .2s",
+  },
+
+  // Action buttons (shown after "Create Meeting")
+  actionButtons: {
+    display: "flex",
+    gap: "10px",
+    maxWidth: "560px",
+    margin: "12px auto 0",
+    width: "100%",
+  },
+  actionBtn: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    padding: "13px 16px",
+    borderRadius: "10px",
+    border: "none",
+    fontSize: "14px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "opacity .15s, transform .1s",
+  },
+  actionBtnInstant: {
+    background: "linear-gradient(135deg,#1a73e8,#4d94ff)",
+    color: "#fff",
+    boxShadow: "0 4px 16px rgba(26,115,232,.4)",
+  },
+  actionBtnSchedule: {
+    background: "rgba(255,255,255,.10)",
+    border: "1px solid rgba(255,255,255,.2)",
+    color: "#e8eaed",
+  },
+
+  // Schedule form
+  scheduleForm: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    maxWidth: "560px",
+    margin: "0 auto",
+    width: "100%",
+  },
+  schedRow: {
+    display: "flex",
+    gap: "12px",
+  },
+  schedField: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+  },
+  schedLabel: {
+    fontSize: "12px",
+    fontWeight: "500",
+    color: "rgba(255,255,255,.6)",
+    textAlign: "left",
+  },
+  schedInput: {
+    background: "rgba(255,255,255,.08)",
+    border: "1px solid rgba(255,255,255,.18)",
+    borderRadius: "10px",
+    padding: "12px 14px",
+    fontSize: "14px",
+    color: "#e8eaed",
+    outline: "none",
+    width: "100%",
+    boxSizing: "border-box",
+    marginBottom: "0",
+    colorScheme: "dark",
+  },
+  inviteeInputRow: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+  },
+  addInviteeBtn: {
+    background: "rgba(255,255,255,.12)",
+    border: "1px solid rgba(255,255,255,.18)",
+    borderRadius: "10px",
+    padding: "12px 18px",
+    color: "#e8eaed",
+    fontSize: "13px",
+    fontWeight: "500",
+    cursor: "pointer",
+    flexShrink: 0,
+    whiteSpace: "nowrap",
+  },
+  inviteeTags: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "6px",
+    marginTop: "6px",
+  },
+  inviteeTag: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    background: "rgba(26,115,232,.2)",
+    border: "1px solid rgba(26,115,232,.4)",
+    borderRadius: "20px",
+    padding: "4px 10px 4px 12px",
+    fontSize: "12px",
+    color: "#8ab4f8",
+  },
+  inviteeTagRemove: {
+    background: "none",
+    border: "none",
+    color: "rgba(138,180,248,.6)",
+    cursor: "pointer",
+    padding: "0",
+    fontSize: "11px",
+    lineHeight: 1,
+  },
+  schedSubmitBtn: {
+    background: "linear-gradient(135deg, #34a853, #2d9249)",
+    color: "#fff",
+    border: "none",
+    borderRadius: "10px",
+    padding: "14px",
+    fontSize: "15px",
+    fontWeight: "600",
+    width: "100%",
+    cursor: "pointer",
+    boxShadow: "0 4px 20px rgba(52,168,83,.35)",
+    transition: "opacity .15s",
+  },
+
+  // Success banner
+  successBanner: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    background: "rgba(52,168,83,.12)",
+    border: "1px solid rgba(52,168,83,.3)",
+    borderRadius: "10px",
+    padding: "12px 16px",
+    maxWidth: "560px",
+    margin: "0 auto 16px",
+    width: "100%",
+    fontSize: "13px",
+    color: "#81c995",
+    textAlign: "left",
+    lineHeight: 1.5,
+  },
+  successClose: {
+    background: "none",
+    border: "none",
+    color: "rgba(129,201,149,.6)",
+    cursor: "pointer",
+    marginLeft: "auto",
+    fontSize: "14px",
+    flexShrink: 0,
+  },
+  gcalBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    marginTop: "8px",
+    background: "rgba(52,168,83,.2)",
+    border: "1px solid rgba(52,168,83,.4)",
+    borderRadius: "6px",
+    padding: "5px 12px",
+    fontSize: "12px",
+    fontWeight: "500",
+    color: "#81c995",
+    textDecoration: "none",
+    cursor: "pointer",
+  },
+
+  // Scheduled badge in meeting list
+  scheduledBadge: {
+    display: "inline-block",
+    marginLeft: "8px",
+    background: "rgba(52,168,83,.12)",
+    border: "1px solid rgba(52,168,83,.3)",
+    borderRadius: "4px",
+    padding: "1px 6px",
+    fontSize: "11px",
+    fontWeight: "500",
+    color: "#34a853",
+    verticalAlign: "middle",
   },
 };

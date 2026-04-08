@@ -21,8 +21,13 @@ async function request(method, path, body) {
 
 // ── Public meeting ─────────────────────────────────────────────────────────
 
-export const createMeeting = (name, settings) =>
-  request("POST", "/api/v1/public/meetings", { name, settings });
+export const createMeeting = (name, settings, scheduledAt = null, invitees = [], timezone = "UTC") =>
+  request("POST", "/api/v1/public/meetings", {
+    name,
+    settings,
+    ...(scheduledAt ? { scheduled_at: scheduledAt, timezone } : {}),
+    ...(invitees.length > 0 ? { invitees } : {}),
+  });
 
 export const listMeetings = () =>
   request("GET", "/api/v1/public/meetings");
