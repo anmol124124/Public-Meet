@@ -86,6 +86,7 @@ export default function SdkJoin() {
       button_label:    info.button_label     || null,
       welcome_message: info.welcome_message  || null,
       logo_url:        info.logo_url         || null,
+      theme:           info.theme            || null,
     };
     sessionStorage.setItem(SESSION_KEY, JSON.stringify({ guestToken: info.guest_token, logoUrl: info.logo_url || "", branding }));
     launchSdk(info.room_name, info.guest_token, false, info.logo_url || "", branding);
