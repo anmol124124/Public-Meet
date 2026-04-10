@@ -44,18 +44,18 @@ export default function SdkJoin() {
     const saved = sessionStorage.getItem(SESSION_KEY);
     if (saved) {
       try {
-        const { guestToken, logoUrl = "" } = JSON.parse(saved);
+        const { guestToken, logoUrl = "", branding = null } = JSON.parse(saved);
         // Show refresh warning banner for 5 seconds
         setRefreshWarning(true);
         setTimeout(() => setRefreshWarning(false), 5000);
-        launchSdk(roomName, guestToken, true, logoUrl);
+        launchSdk(roomName, guestToken, true, logoUrl, branding);
       } catch {
         sessionStorage.removeItem(SESSION_KEY);
       }
     }
   }, [sdkReady]);
 
-  function launchSdk(room, token, reconnect = false, logoUrl = "") {
+  function launchSdk(room, token, reconnect = false, logoUrl = "", branding = null) {
     setJoined(true);
     setTimeout(() => {
       new window.WebRTCMeetingAPI({
@@ -64,6 +64,7 @@ export default function SdkJoin() {
         token:      token,
         reconnect:  reconnect,
         logoUrl:    logoUrl,
+        branding:   branding || {},
         parentNode: containerRef.current,
         onLeave:    (reason) => {
           if (reason === 'mau_limit_reached') {
@@ -80,8 +81,14 @@ export default function SdkJoin() {
 
   const joinNow = () => {
     if (!info || !sdkReady) return;
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ guestToken: info.guest_token, logoUrl: info.logo_url || "" }));
-    launchSdk(info.room_name, info.guest_token, false, info.logo_url || "");
+    const branding = {
+      primary_color:   info.primary_color   || null,
+      button_label:    info.button_label     || null,
+      welcome_message: info.welcome_message  || null,
+      logo_url:        info.logo_url         || null,
+    };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ guestToken: info.guest_token, logoUrl: info.logo_url || "", branding }));
+    launchSdk(info.room_name, info.guest_token, false, info.logo_url || "", branding);
   };
 
   if (mauBlocked) {
