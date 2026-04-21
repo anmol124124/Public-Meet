@@ -236,6 +236,25 @@ export default function Home() {
           <span style={styles.brandName}>RoomLy</span>
         </div>
 
+        {!isLoggedIn() && (
+          <button
+            onClick={() => navigate("/auth")}
+            style={{
+              marginLeft: "auto",
+              padding: "9px 20px",
+              background: "rgba(255,255,255,.12)",
+              border: "1.5px solid rgba(255,255,255,.28)",
+              borderRadius: "8px",
+              color: "#fff",
+              fontSize: "14px",
+              fontWeight: "500",
+              cursor: "pointer",
+            }}
+          >
+            Sign in / Sign up
+          </button>
+        )}
+
         {isLoggedIn() && (
           <div style={{ position: "relative", marginLeft: "auto" }}>
             <button
