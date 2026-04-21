@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { login, signup, getHostToken } from "../api";
+import { login, signup, getHostToken, getMe } from "../api";
 
 export default function Auth() {
   const [tab, setTab]           = useState("signup"); // default to signup
@@ -24,6 +24,7 @@ export default function Auth() {
     setLoading(true);
     setError("");
     try {
+      const isSignup = tab === "signup";
       if (tab === "login") {
         await login(email, password);
       } else {
@@ -38,13 +39,32 @@ export default function Auth() {
             state: { token, name: name || email, isHost: true },
             replace: true,
           });
+          return;
         } catch {
-          // Meeting not owned by this user (or stale URL) — go home
           navigate("/", { replace: true });
+          return;
         }
-      } else {
-        navigate(redirectTo, { replace: true });
       }
+
+      // If there's a pending meeting to start, route through pricing
+      const hasPending = !!sessionStorage.getItem("pending_meeting_name");
+      if (hasPending) {
+        // New signup always sees pricing; returning login users skip if they have a plan
+        if (isSignup) {
+          navigate("/pricing", { replace: true });
+        } else {
+          const user = await getMe();
+          if (user.plan) {
+            // Already paid — go back to home which will auto-create the meeting
+            navigate("/", { replace: true });
+          } else {
+            navigate("/pricing", { replace: true });
+          }
+        }
+        return;
+      }
+
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       // If signup fails because email already exists, switch to login tab
       if (tab === "signup" && err.message?.toLowerCase().includes("already")) {

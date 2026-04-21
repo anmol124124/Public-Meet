@@ -59,6 +59,11 @@ export const logout = () => localStorage.removeItem("access_token");
 
 export const isLoggedIn = () => !!localStorage.getItem("access_token");
 
+export const getMe = () => request("GET", "/api/v1/auth/me");
+
+export const activatePlan = (plan) =>
+  request("POST", "/api/v1/payments/activate-plan", { plan });
+
 export const backendWsUrl = () =>
   BASE.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
 

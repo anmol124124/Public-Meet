@@ -1,0 +1,419 @@
+/* ── Dashboard CSS (mirrors dashboard service) ──────────────────────────── */
+.ud-root {
+  --bg:        #eef1f8;
+  --surface:   #ffffff;
+  --surface2:  #f1f5f9;
+  --surface3:  #e8edf5;
+  --border:    rgba(0,0,0,.09);
+  --border-h:  rgba(0,0,0,.16);
+  --primary:   #6c63ff;
+  --primary-h: #5a52e0;
+  --primary-g: linear-gradient(135deg,#6c63ff,#9c89ff);
+  --danger:    #e53e3e;
+  --danger-h:  #c53030;
+  --text:      #1a202c;
+  --muted:     #64748b;
+  --green:     #059669;
+  --radius:    14px;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.07);
+  --shadow-md: 0 8px 32px rgba(0,0,0,.1);
+
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  overflow: hidden;
+  z-index: 9999;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────────── */
+.ud-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid #e2e8f0;
+  box-shadow: 2px 0 12px rgba(0,0,0,.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.ud-brand {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ud-brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #1a73e8, #4d94ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(26,115,232,0.35);
+}
+
+.ud-brand-name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.ud-brand-tagline {
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.1px;
+  margin-top: 1px;
+}
+
+.ud-nav {
+  flex: 1;
+  padding: 8px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ud-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 12px;
+}
+
+.ud-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all .15s;
+  white-space: nowrap;
+}
+
+.ud-nav-item:hover {
+  background: rgba(0,0,0,.05);
+  color: var(--text);
+}
+
+.ud-nav-item.active {
+  background: rgba(108,99,255,.14);
+  color: var(--primary);
+}
+
+.ud-nav-item.active svg { color: var(--primary); }
+.ud-nav-item svg { color: var(--muted); flex-shrink: 0; transition: color .15s; }
+.ud-nav-item:hover svg { color: var(--text); }
+
+.ud-bottom {
+  border-top: 1px solid var(--border);
+  padding: 10px 8px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ud-user-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+}
+
+.ud-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary-g);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.ud-user-email {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Main ──────────────────────────────────────────────────────────────── */
+.ud-main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ud-page {
+  padding: 36px 48px;
+  max-width: 1200px;
+  width: 100%;
+}
+
+.ud-page-heading {
+  margin-bottom: 28px;
+}
+
+.ud-page-heading h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.ud-page-heading p {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ── Stat cards ────────────────────────────────────────────────────────── */
+.ud-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.ud-stat-card {
+  background: var(--surface);
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 22px 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+  border-top: 3px solid var(--primary);
+}
+
+.ud-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.ud-stat-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 500;
+}
+
+/* ── Section card ──────────────────────────────────────────────────────── */
+.ud-section-card {
+  background: var(--surface);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  padding: 28px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+}
+
+.ud-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
+
+/* ── Recordings table ──────────────────────────────────────────────────── */
+.ud-rec-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ud-rec-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ud-rec-table td {
+  padding: 12px 12px;
+  font-size: 13.5px;
+  color: var(--text);
+  border-bottom: 1px solid rgba(0,0,0,.04);
+  vertical-align: middle;
+}
+
+.ud-rec-table tr:last-child td { border-bottom: none; }
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.ud-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all .18s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.ud-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.ud-btn-primary {
+  background: var(--primary-g);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(108,99,255,.3);
+}
+
+.ud-btn-primary:hover:not(:disabled) {
+  opacity: .88;
+  box-shadow: 0 6px 24px rgba(108,99,255,.45);
+  transform: translateY(-1px);
+}
+
+.ud-btn-ghost {
+  background: rgba(0,0,0,.05);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.ud-btn-ghost:hover:not(:disabled) {
+  background: rgba(0,0,0,.09);
+  border-color: var(--border-h);
+}
+
+.ud-btn-sm { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
+
+.ud-btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* ── Toast ─────────────────────────────────────────────────────────────── */
+.ud-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: #1a202c;
+  color: #f8fafc;
+  padding: 11px 22px;
+  border-radius: 40px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  transition: all .28s cubic-bezier(.4,0,.2,1);
+  z-index: 10000;
+  pointer-events: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  white-space: nowrap;
+}
+
+.ud-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── FAQ ───────────────────────────────────────────────────────────────── */
+.ud-faq-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+
+.ud-faq-item.open { border-color: var(--border-h); }
+
+.ud-faq-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  gap: 12px;
+  font-family: inherit;
+}
+
+.ud-faq-answer {
+  padding: 0 20px 18px;
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────────── */
+.ud-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+
+.ud-empty svg { margin-bottom: 16px; opacity: .25; }
+.ud-empty h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+.ud-empty p  { font-size: 14px; line-height: 1.6; }
+
+/* ── Modal overlay ─────────────────────────────────────────────────────── */
+.ud-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.65);
+  backdrop-filter: blur(6px);
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.ud-modal {
+  background: var(--surface);
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.15), 0 4px 16px rgba(0,0,0,.08);
+  padding: 32px;
+  color: var(--text);
+}

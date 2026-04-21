@@ -44,12 +44,18 @@ export default function Room() {
         sessionStorage.setItem(`wrtc_name_${roomCode}`, session.name);
       }
       const dashboardBase = (window.DASHBOARD_URL || import.meta.env.VITE_DASHBOARD_URL || 'http://localhost:5174').replace(/\/$/, '');
+      const accessToken = localStorage.getItem("access_token") || "";
+      const addonRaw = localStorage.getItem("pub_recording_addon_enabled");
+      const recordingAddonEnabled = addonRaw === null ? true : addonRaw === "true";
       apiRef.current = new window.WebRTCMeetingAPI({
-        serverUrl:      backendWsUrl(),
-        roomName:       roomCode,
-        token:          session.token,
-        parentNode:     containerRef.current,
-        upgradePlanUrl: dashboardBase + '/?upgrade=1',
+        serverUrl:              backendWsUrl(),
+        roomName:               roomCode,
+        token:                  session.token,
+        parentNode:             containerRef.current,
+        upgradePlanUrl:         dashboardBase + '/?upgrade=1',
+        recordingEndpoint:      backendBase + '/api/v1/public/meetings/recordings/upload',
+        recordingToken:         accessToken,
+        recordingAddonEnabled:  recordingAddonEnabled,
         onLeave: () => navigate(`/${roomCode}/left`),
       });
     };

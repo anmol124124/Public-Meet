@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createMeeting, getHostToken, isLoggedIn, listMeetings } from "../api";
+import { createMeeting, getHostToken, isLoggedIn, listMeetings, getMe, logout } from "../api";
 
 const TZ_OPTIONS = [
   "UTC",
@@ -70,6 +70,8 @@ export default function Home() {
   const [inviteeInput, setInviteeInput] = useState("");
   const [invitees, setInvitees]         = useState([]);
   const [scheduleSuccess, setScheduleSuccess] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [userEmail, setUserEmail]     = useState("");
   const inviteeRef = useRef(null);
 
   const toggleSetting = (key) =>
@@ -77,6 +79,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!isLoggedIn()) return;
+
+    getMe().then(u => setUserEmail(u.email)).catch(() => {});
 
     // Auto-create a meeting that was started before login
     const pendingName     = sessionStorage.getItem("pending_meeting_name");
@@ -115,17 +119,24 @@ export default function Home() {
     if (!isLoggedIn()) {
       sessionStorage.setItem("pending_meeting_name",     meetingName.trim());
       sessionStorage.setItem("pending_meeting_settings", JSON.stringify(settings));
-      navigate("/auth?redirect=/");
+      navigate("/auth");
       return;
     }
     setLoading(true);
     setError("");
     try {
+      // Check if user has a paid plan — if not, go through pricing first
+      const user = await getMe();
+      if (!user.plan) {
+        sessionStorage.setItem("pending_meeting_name",     meetingName.trim());
+        sessionStorage.setItem("pending_meeting_settings", JSON.stringify(settings));
+        navigate("/pricing");
+        return;
+      }
       const data = await createMeeting(meetingName.trim(), settings);
       setMeetings((prev) => [data, ...prev]);
       setActiveTab("instant");
       setPage(1);
-      // Navigate straight to the room as host
       const { token, name } = await getHostToken(data.room_code);
       navigate(`/${data.room_code}`, { state: { hostToken: token, hostName: name } });
     } catch (err) {
@@ -224,6 +235,54 @@ export default function Home() {
           </svg>
           <span style={styles.brandName}>RoomLy</span>
         </div>
+
+        {isLoggedIn() && (
+          <div style={{ position: "relative", marginLeft: "auto" }}>
+            <button
+              onClick={() => setProfileOpen(o => !o)}
+              style={styles.profileBtn}
+              title={userEmail}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+              </svg>
+            </button>
+
+            {profileOpen && (
+              <>
+                {/* Backdrop to close on outside click */}
+                <div
+                  style={{ position: "fixed", inset: 0, zIndex: 99 }}
+                  onClick={() => setProfileOpen(false)}
+                />
+                <div style={styles.dropdown}>
+                  {userEmail && (
+                    <div style={styles.dropEmail}>{userEmail}</div>
+                  )}
+                  <button
+                    style={styles.dropItem}
+                    onClick={() => { setProfileOpen(false); navigate("/dashboard"); }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    Dashboard
+                  </button>
+                  <button
+                    style={styles.dropItem}
+                    onClick={() => {
+                      logout();
+                      setProfileOpen(false);
+                      setUserEmail("");
+                      setMeetings([]);
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sign out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* ── Hero ── */}
@@ -629,6 +688,53 @@ const styles = {
     fontWeight: "600",
     color: "#fff",
     letterSpacing: "-0.3px",
+  },
+  profileBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: "50%",
+    background: "rgba(255,255,255,.15)",
+    border: "1.5px solid rgba(255,255,255,.25)",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+  },
+  dropdown: {
+    position: "absolute",
+    top: "calc(100% + 10px)",
+    right: 0,
+    background: "#2d2e31",
+    border: "1px solid rgba(255,255,255,.12)",
+    borderRadius: 12,
+    minWidth: 200,
+    boxShadow: "0 8px 32px rgba(0,0,0,.5)",
+    zIndex: 100,
+    overflow: "hidden",
+  },
+  dropEmail: {
+    padding: "12px 16px 8px",
+    fontSize: 12,
+    color: "#9aa0a6",
+    borderBottom: "1px solid rgba(255,255,255,.08)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  dropItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    padding: "11px 16px",
+    fontSize: 14,
+    color: "#e8eaed",
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    textDecoration: "none",
+    textAlign: "left",
   },
 
   // Hero

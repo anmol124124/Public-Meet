@@ -2,6 +2,8 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
+import Pricing from "./pages/Pricing";
+import UserDashboard from "./pages/UserDashboard";
 import JoinRoom from "./pages/JoinRoom";
 import Room from "./pages/Room";
 import Left from "./pages/Left";
@@ -13,6 +15,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/auth" element={<Auth />} />
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/dashboard" element={<UserDashboard />} />
       {/* Embed SDK guest entry/leave — must be before /:roomCode */}
       <Route path="/sdk/join/:roomName" element={<SdkJoin />} />
       <Route path="/sdk/leave/:roomName" element={<SdkLeave />} />
