@@ -52,7 +52,7 @@ export default function Home() {
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState("");
   const [meetings, setMeetings]       = useState([]);
-  const [activeTab, setActiveTab]     = useState("upcoming");
+  const [activeTab, setActiveTab]     = useState("instant");
   const [copied, setCopied]           = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings]         = useState({ ...DEFAULT_SETTINGS });
@@ -117,7 +117,7 @@ export default function Home() {
         createMeeting(pendingName, s)
           .then((data) => {
             setMeetings((prev) => [data, ...prev]);
-            setActiveTab("upcoming");
+            setActiveTab("instant");
             return getHostToken(data.room_code).then(({ token, name }) => {
               navigate(`/${data.room_code}`, { state: { hostToken: token, hostName: name } });
             });
