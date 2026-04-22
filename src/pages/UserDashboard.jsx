@@ -18,7 +18,10 @@ function fmtSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 function fmtTime(iso) {
-  return new Date(iso).toLocaleString(undefined, {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
     month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
@@ -166,13 +169,92 @@ function EnterpriseModal({ onClose }) {
 }
 
 // ── OVERVIEW PAGE ────────────────────────────────────────────────────────────
+function MeetingSummaryModal({ meeting, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const joinUrl = meeting.url || `${window.location.origin}/${meeting.room_code}/room`;
+  const copy = () => {
+    navigator.clipboard.writeText(joinUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="ud-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ud-modal" style={{ maxWidth: 480 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: "var(--text)" }}>Meeting Summary</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 20, lineHeight: 1 }}>✕</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Name */}
+          <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "14px 16px" }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Meeting Name</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{meeting.name}</div>
+          </div>
+
+          {/* Type + Status row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Type</div>
+              <span style={{
+                display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+                background: meeting.scheduled_at ? "rgba(52,168,83,.15)" : "rgba(108,99,255,.15)",
+                color: meeting.scheduled_at ? "#059669" : "var(--primary)",
+              }}>
+                {meeting.scheduled_at ? "Scheduled" : "Instant"}
+              </span>
+            </div>
+            <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Status</div>
+              <span style={{
+                display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+                background: meeting.is_active ? "rgba(5,150,105,.15)" : "rgba(100,116,139,.12)",
+                color: meeting.is_active ? "#059669" : "var(--muted)",
+              }}>
+                {meeting.is_active ? "Active" : "Ended"}
+              </span>
+            </div>
+          </div>
+
+          {/* Dates */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Created</div>
+              <div style={{ fontSize: 13, color: "var(--text)" }}>{fmtTime(meeting.created_at)}</div>
+            </div>
+            <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+                {meeting.scheduled_at ? "Scheduled For" : "Room Code"}
+              </div>
+              <div style={{ fontSize: 13, color: "var(--text)", fontFamily: meeting.scheduled_at ? "inherit" : "monospace" }}>
+                {meeting.scheduled_at ? fmtTime(meeting.scheduled_at) : meeting.room_code}
+              </div>
+            </div>
+          </div>
+
+          {/* Join link */}
+          <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "14px 16px" }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Meeting Link</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ flex: 1, fontSize: 12, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                {joinUrl}
+              </div>
+              <button className="ud-btn ud-btn-ghost ud-btn-sm" onClick={copy} style={{ flexShrink: 0 }}>
+                {copied ? "✓ Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OverviewPage({ user, meetings }) {
   const navigate = useNavigate();
-  const instant   = meetings.filter(m => !m.scheduled_at);
-  const scheduled = meetings.filter(m => !!m.scheduled_at);
-  const lastDate  = meetings.length > 0
-    ? new Date(meetings[0].created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-    : "—";
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
+
+  const lastDate = meetings.length > 0 ? fmtTime(meetings[0].created_at) : "—";
 
   return (
     <div className="ud-page">
@@ -187,8 +269,8 @@ function OverviewPage({ user, meetings }) {
           <div className="ud-stat-label">Total Meetings</div>
         </div>
         <div className="ud-stat-card">
-          <div className="ud-stat-value" style={{ fontSize: 16, paddingTop: 4 }}>{lastDate}</div>
-          <div className="ud-stat-label">Last Meeting</div>
+          <div className="ud-stat-value" style={{ fontSize: 14, paddingTop: 6, lineHeight: 1.3 }}>{lastDate}</div>
+          <div className="ud-stat-label">Last Created</div>
         </div>
         <div className="ud-stat-card">
           <div className="ud-stat-value" style={{ fontSize: 15, textTransform: "capitalize" }}>
@@ -214,7 +296,12 @@ function OverviewPage({ user, meetings }) {
             </thead>
             <tbody>
               {meetings.slice(0, 10).map(m => (
-                <tr key={m.room_code}>
+                <tr key={m.room_code}
+                  onClick={() => setSelectedMeeting(m)}
+                  style={{ cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                  onMouseLeave={e => e.currentTarget.style.background = ""}
+                >
                   <td style={{ padding: "13px 24px", fontWeight: 500 }}>{m.name}</td>
                   <td style={{ padding: "13px 12px", fontFamily: "monospace", fontSize: 12, color: "var(--muted)" }}>{m.room_code}</td>
                   <td style={{ padding: "13px 12px" }}>
@@ -247,6 +334,10 @@ function OverviewPage({ user, meetings }) {
             </button>
           </div>
         </div>
+      )}
+
+      {selectedMeeting && (
+        <MeetingSummaryModal meeting={selectedMeeting} onClose={() => setSelectedMeeting(null)} />
       )}
     </div>
   );
@@ -647,11 +738,411 @@ function AddOnsPage({ user, onToast, onNavMyPlan }) {
   );
 }
 
+// ── SUMMARY PAGE ─────────────────────────────────────────────────────────────
+function fmtDuration(seconds) {
+  if (seconds == null || seconds <= 0) return "—";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  return `${s}s`;
+}
+
+function fmtDetailTime(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return {
+    time: d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+    date: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+  };
+}
+
+function exportCSV(meetings, summaries) {
+  const rows = [["Meeting", "Room Code", "Date", "Duration", "People", "Status"]];
+  meetings.forEach(m => {
+    const sd = summaries[m.room_code];
+    const people = sd?.participants?.length ?? "";
+    const dur = sd?.participants?.length
+      ? Math.max(...sd.participants.map(p => p.duration_seconds || 0))
+      : 0;
+    rows.push([m.name, m.room_code, fmtTime(m.created_at), fmtDuration(dur), people, m.is_active ? "Live" : "Ended"]);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = "meetings.csv";
+  a.click();
+}
+
+function Av({ name, size = 32 }) {
+  const colors = ["#6c63ff","#1a73e8","#059669","#d97706","#dc2626","#7c3aed"];
+  const idx = (name?.charCodeAt(0) || 0) % colors.length;
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%", background: colors[idx],
+      display: "flex", alignItems: "center", justifyContent: "center",
+      color: "#fff", fontWeight: 700, fontSize: size * 0.4, flexShrink: 0,
+    }}>
+      {(name || "?")[0].toUpperCase()}
+    </div>
+  );
+}
+
+function SummaryDetail({ meeting, summaryData, onBack }) {
+  const [data, setData]     = useState(summaryData || null);
+  const [loading, setLoading] = useState(!summaryData);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (summaryData) return;
+    apiFetch(`/api/v1/public/meetings/summary/${meeting.room_code}`)
+      .then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+  }, [meeting.room_code, summaryData]);
+
+  const participants = (data?.participants || []).filter(p =>
+    !search.trim() || p.display_name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const joinTimes = (data?.participants || []).map(p => new Date(p.joined_at).getTime()).filter(Boolean);
+  const leftTimes = (data?.participants || []).filter(p => p.left_at).map(p => new Date(p.left_at).getTime());
+  const startedAt = joinTimes.length ? new Date(Math.min(...joinTimes)) : null;
+  const endedAt   = leftTimes.length && !data?.is_active ? new Date(Math.max(...leftTimes)) : null;
+  const meetingDuration = startedAt && endedAt
+    ? Math.round((endedAt.getTime() - startedAt.getTime()) / 1000)
+    : data?.participants?.length
+      ? Math.max(...data.participants.map(p => p.duration_seconds || 0))
+      : null;
+
+  const startFmt = fmtDetailTime(startedAt);
+  const endFmt   = fmtDetailTime(endedAt);
+
+  return (
+    <div className="ud-page">
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
+        <button className="ud-btn ud-btn-ghost ud-btn-sm" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "var(--text)" }}>{meeting.name}</h1>
+          <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>
+            {meeting.room_code}
+            {meeting.created_at && <> · {fmtTime(meeting.created_at)}</>}
+          </div>
+        </div>
+      </div>
+
+      {/* 4 stat cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
+        <div className="ud-stat-card">
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>MEETING DURATION</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>{loading ? "…" : fmtDuration(meetingDuration)}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>total time</div>
+        </div>
+        <div className="ud-stat-card">
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>TOTAL PARTICIPANTS</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>{loading ? "…" : (data?.participants?.length ?? 0)}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>joined</div>
+        </div>
+        <div className="ud-stat-card">
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>STARTED AT</div>
+          {loading ? <div style={{ fontSize: 26, fontWeight: 700 }}>…</div> : startFmt ? (
+            <>
+              <div style={{ fontSize: 26, fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>{startFmt.time}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>{startFmt.date}</div>
+            </>
+          ) : <div style={{ fontSize: 22, fontWeight: 700, color: "var(--muted)" }}>—</div>}
+        </div>
+        <div className="ud-stat-card">
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>ENDED AT</div>
+          {loading ? <div style={{ fontSize: 26, fontWeight: 700 }}>…</div> : endFmt ? (
+            <>
+              <div style={{ fontSize: 26, fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>{endFmt.time}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>{endFmt.date}</div>
+            </>
+          ) : (
+            <div style={{ fontSize: 13, color: data?.is_active ? "#16a34a" : "var(--muted)", fontWeight: 600, paddingTop: 4 }}>
+              {data?.is_active ? "● Still live" : "—"}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Participants */}
+      <div className="ud-section-card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>Participants</span>
+            {!loading && <span style={{ fontSize: 12, color: "var(--muted)" }}>{data?.participants?.length ?? 0} total</span>}
+          </div>
+          <div style={{ position: "relative" }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }}>
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input placeholder="Search participants…" value={search} onChange={e => setSearch(e.target.value)}
+              style={{ padding: "6px 12px 6px 30px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", width: 200, background: "var(--surface2)", color: "var(--text)" }}
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Loading…</div>
+        ) : participants.length === 0 ? (
+          <div className="ud-empty" style={{ padding: "36px 20px" }}>
+            <p>{(data?.participants?.length ?? 0) === 0 ? "No participant data recorded yet." : `No results for "${search}"`}</p>
+          </div>
+        ) : (
+          <table className="ud-rec-table">
+            <thead>
+              <tr>
+                <th style={{ padding: "10px 24px" }}>NAME</th>
+                <th style={{ padding: "10px 12px" }}>ROLE</th>
+                <th style={{ padding: "10px 12px" }}>JOINED AT</th>
+                <th style={{ padding: "10px 12px" }}>LEFT AT</th>
+                <th style={{ padding: "10px 24px", textAlign: "right" }}>ATTENDED</th>
+              </tr>
+            </thead>
+            <tbody>
+              {participants.map(p => (
+                <tr key={p.id}>
+                  <td style={{ padding: "14px 24px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <Av name={p.display_name} />
+                      <span style={{ fontWeight: 500, color: "var(--text)" }}>{p.display_name}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: "14px 12px" }}>
+                    <span style={{
+                      display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                      background: p.role === "host" ? "rgba(108,99,255,.12)" : "rgba(100,116,139,.1)",
+                      color: p.role === "host" ? "var(--primary)" : "var(--muted)",
+                      textTransform: "uppercase", letterSpacing: "0.05em",
+                    }}>{p.role}</span>
+                  </td>
+                  <td style={{ padding: "14px 12px", fontSize: 13, color: "var(--muted)", whiteSpace: "nowrap" }}>{fmtTime(p.joined_at)}</td>
+                  <td style={{ padding: "14px 12px", fontSize: 13, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                    {p.left_at ? fmtTime(p.left_at) : <span style={{ color: "#16a34a", fontWeight: 600 }}>● Still in</span>}
+                  </td>
+                  <td style={{ padding: "14px 24px", textAlign: "right", fontWeight: 700, fontSize: 14, color: "var(--text)" }}>
+                    {fmtDuration(p.duration_seconds)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SummaryPage({ meetings }) {
+  const [summaries, setSummaries] = useState({});
+  const [loading, setLoading]     = useState(true);
+  const [selected, setSelected]   = useState(null);
+  const [search, setSearch]       = useState("");
+  const [filter, setFilter]       = useState("all");
+  const [sort, setSort]           = useState("newest");
+
+  // Restore selected meeting from sessionStorage once meetings list is available
+  useEffect(() => {
+    const saved = sessionStorage.getItem("ud_summary_room");
+    if (saved && meetings.length > 0) {
+      const m = meetings.find(x => x.room_code === saved);
+      if (m) setSelected(m);
+    }
+  }, [meetings]);
+
+  function selectMeeting(m) { sessionStorage.setItem("ud_summary_room", m.room_code); setSelected(m); }
+  function goBack()          { sessionStorage.removeItem("ud_summary_room"); setSelected(null); }
+
+  useEffect(() => {
+    if (meetings.length === 0) { setLoading(false); return; }
+    setLoading(true);
+    Promise.all(
+      meetings.map(m =>
+        apiFetch(`/api/v1/public/meetings/summary/${m.room_code}`)
+          .then(d => [m.room_code, d])
+          .catch(() => [m.room_code, null])
+      )
+    ).then(results => {
+      const map = {};
+      results.forEach(([code, d]) => { map[code] = d; });
+      setSummaries(map);
+    }).finally(() => setLoading(false));
+  }, [meetings]);
+
+  if (selected) return <SummaryDetail meeting={selected} summaryData={summaries[selected.room_code]} onBack={goBack} />;
+
+  const totalParticipants = Object.values(summaries).reduce((s, d) => s + (d?.participants?.length || 0), 0);
+  const meetingDurations = meetings.map(m => {
+    const d = summaries[m.room_code];
+    if (!d?.participants?.length) return null;
+    return Math.max(...d.participants.map(p => p.duration_seconds || 0)) || null;
+  }).filter(x => x != null);
+  const avgDuration     = meetingDurations.length ? Math.round(meetingDurations.reduce((s, v) => s + v, 0) / meetingDurations.length) : null;
+  const longestDuration = meetingDurations.length ? Math.max(...meetingDurations) : null;
+
+  let filtered = meetings.filter(m => {
+    if (filter === "live"  && !m.is_active) return false;
+    if (filter === "ended" &&  m.is_active) return false;
+    const q = search.trim().toLowerCase();
+    if (q && !m.name.toLowerCase().includes(q) && !m.room_code.includes(q)) return false;
+    return true;
+  });
+  if (sort === "oldest") filtered = [...filtered].reverse();
+
+  const STAT_CARDS = [
+    { label: "TOTAL MEETINGS",      value: meetings.length,              sub: "all time" },
+    { label: "TOTAL PARTICIPANTS",  value: loading ? "…" : totalParticipants, sub: "join sessions" },
+    { label: "AVG DURATION",        value: loading ? "…" : fmtDuration(avgDuration),     sub: "per meeting" },
+    { label: "LONGEST MEETING",     value: loading ? "…" : fmtDuration(longestDuration), sub: "ever" },
+  ];
+
+  return (
+    <div className="ud-page">
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Summary</h1>
+          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 4, marginBottom: 0 }}>
+            Overview of all meetings and activity.
+          </p>
+        </div>
+        <button className="ud-btn ud-btn-ghost ud-btn-sm" onClick={() => { setSummaries({}); setLoading(true); }}
+          style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      {/* Stat cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 24 }}>
+        {STAT_CARDS.map(c => (
+          <div key={c.label} className="ud-stat-card">
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>{c.label}</div>
+            <div style={{ fontSize: c.value === "—" || c.value === "…" ? 22 : 28, fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>{c.value}</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Search + filters */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1, position: "relative" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2"
+            style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input placeholder="Search meetings…" value={search} onChange={e => setSearch(e.target.value)}
+            style={{ width: "100%", padding: "8px 12px 8px 34px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", background: "var(--surface)", color: "var(--text)", boxSizing: "border-box" }}
+          />
+        </div>
+        <div style={{ display: "flex", background: "var(--surface2)", borderRadius: 8, border: "1px solid var(--border)", overflow: "hidden" }}>
+          {[["all","All"],["live","Live"],["ended","Ended"]].map(([val, lbl]) => (
+            <button key={val} onClick={() => setFilter(val)} style={{
+              padding: "7px 16px", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500,
+              background: filter === val ? "var(--primary)" : "transparent",
+              color: filter === val ? "#fff" : "var(--muted)",
+              fontFamily: "inherit",
+            }}>{lbl}</button>
+          ))}
+        </div>
+        <select value={sort} onChange={e => setSort(e.target.value)}
+          style={{ padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, background: "var(--surface2)", color: "var(--text)", outline: "none", cursor: "pointer", fontFamily: "inherit" }}>
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+        <button className="ud-btn ud-btn-ghost ud-btn-sm" onClick={() => exportCSV(filtered, summaries)}
+          style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export CSV
+        </button>
+      </div>
+
+      {/* Table */}
+      {meetings.length === 0 ? (
+        <div className="ud-section-card">
+          <div className="ud-empty" style={{ padding: "48px 20px" }}>
+            <h3>No meetings yet</h3>
+            <p>Create a meeting and the participant summary will appear here.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="ud-section-card" style={{ padding: 0, overflow: "hidden" }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--muted)", fontSize: 14 }}>No meetings match your filters.</div>
+          ) : (
+            <>
+              <table className="ud-rec-table">
+                <thead>
+                  <tr>
+                    <th style={{ padding: "12px 24px" }}>MEETING</th>
+                    <th style={{ padding: "12px 12px" }}>DATE</th>
+                    <th style={{ padding: "12px 12px" }}>DURATION</th>
+                    <th style={{ padding: "12px 12px" }}>PEOPLE</th>
+                    <th style={{ padding: "12px 24px", textAlign: "right" }}>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(m => {
+                    const sd = summaries[m.room_code];
+                    const people = sd?.participants?.length ?? "—";
+                    const dur = sd?.participants?.length
+                      ? fmtDuration(Math.max(...sd.participants.map(p => p.duration_seconds || 0)))
+                      : "—";
+                    return (
+                      <tr key={m.room_code} onClick={() => selectMeeting(m)} style={{ cursor: "pointer" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = ""}
+                      >
+                        <td style={{ padding: "14px 24px" }}>
+                          <div style={{ fontWeight: 600, color: "var(--text)" }}>{m.name}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2, fontFamily: "monospace" }}>{m.room_code}</div>
+                        </td>
+                        <td style={{ padding: "14px 12px", fontSize: 13, color: "var(--muted)", whiteSpace: "nowrap" }}>{fmtTime(m.created_at)}</td>
+                        <td style={{ padding: "14px 12px", fontSize: 13, fontWeight: 500, color: "var(--text)" }}>{loading ? "…" : dur}</td>
+                        <td style={{ padding: "14px 12px", fontSize: 13, color: "var(--text)" }}>{loading ? "…" : people}</td>
+                        <td style={{ padding: "14px 24px", textAlign: "right" }}>
+                          <span style={{
+                            display: "inline-block", padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+                            background: m.is_active ? "rgba(5,150,105,.1)" : "rgba(108,99,255,.1)",
+                            color: m.is_active ? "#16a34a" : "var(--primary)",
+                            textTransform: "uppercase", letterSpacing: "0.05em",
+                          }}>{m.is_active ? "LIVE" : "ENDED"}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div style={{ padding: "12px 24px", borderTop: "1px solid var(--border)", textAlign: "right", fontSize: 12, color: "var(--muted)" }}>
+                {filtered.length} of {meetings.length} meeting{meetings.length !== 1 ? "s" : ""}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── NAV ITEMS ────────────────────────────────────────────────────────────────
 const NAV = [
   {
     id: "overview", label: "Overview",
     icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+  },
+  {
+    id: "summary", label: "Summary",
+    icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   },
   {
     id: "my-plan", label: "My Plan",
@@ -761,6 +1252,7 @@ export default function UserDashboard() {
       {/* ── Main ───────────────────────────────────────────────────────── */}
       <div className="ud-main">
         {activePage === "overview"   && <OverviewPage user={user} meetings={meetings} />}
+        {activePage === "summary"    && <SummaryPage meetings={meetings} />}
         {activePage === "my-plan"    && <MyPlanPage user={user} onToast={showToast} onUserRefresh={loadUser} />}
         {activePage === "add-ons"    && <AddOnsPage user={user} onToast={showToast} onNavMyPlan={() => navTo("my-plan")} />}
         {activePage === "recordings" && <RecordingsPage />}
