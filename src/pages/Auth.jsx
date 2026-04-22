@@ -46,14 +46,14 @@ export default function Auth() {
         }
       }
 
-      // If there's a pending INSTANT meeting, route through pricing first
-      const hasPending = !!sessionStorage.getItem("pending_meeting_name");
-      const pendingType = sessionStorage.getItem("pending_meeting_type");
-      if (hasPending && pendingType !== "scheduled") {
-        // New signup always sees pricing; returning login users skip if they have a plan
+      // If there's a pending meeting, route through pricing for new signups
+      const hasPending  = !!sessionStorage.getItem("pending_meeting_name");
+      if (hasPending) {
         if (isSignup) {
+          // New signup always needs to pick a plan first
           navigate("/pricing", { replace: true });
         } else {
+          // Existing login: skip pricing if they already have a plan
           const user = await getMe();
           if (user.plan) {
             navigate("/", { replace: true });

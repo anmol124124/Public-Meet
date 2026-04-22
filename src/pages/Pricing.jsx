@@ -154,6 +154,7 @@ export default function Pricing() {
 
   const pendingName     = sessionStorage.getItem("pending_meeting_name");
   const pendingSettings = sessionStorage.getItem("pending_meeting_settings");
+  const pendingType     = sessionStorage.getItem("pending_meeting_type");
 
   useEffect(() => {
     if (!isLoggedIn()) { navigate("/auth", { replace: true }); return; }
@@ -164,13 +165,24 @@ export default function Pricing() {
     setLoadingPlan(planId);
     setError("");
     try {
+      // Plan activation is handled by PaymentModal (paid) or here for free
+      if (planId === "free") await activatePlan("free");
+
+      if (pendingType === "scheduled") {
+        // Signal Home's useEffect that pricing was completed — safe to create the meeting
+        sessionStorage.setItem("pending_return_confirmed", "1");
+        navigate("/", { replace: true });
+        return;
+      }
+
+      // Instant meeting: create and go to room
       const name     = pendingName || "My Meeting";
       const settings = pendingSettings ? JSON.parse(pendingSettings) : {};
       sessionStorage.removeItem("pending_meeting_name");
       sessionStorage.removeItem("pending_meeting_settings");
       sessionStorage.removeItem("pending_meeting_type");
       sessionStorage.removeItem("pending_schedule");
-      const data         = await createMeeting(name, settings);
+      const data               = await createMeeting(name, settings);
       const { token, name: hostName } = await getHostToken(data.room_code);
       navigate(`/${data.room_code}`, { state: { hostToken: token, hostName }, replace: true });
     } catch (e) {

@@ -65,7 +65,10 @@ export default function Home() {
   const [showCreateDrop, setShowCreateDrop] = useState(false);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [schedDate, setSchedDate]       = useState("");
-  const [schedTime, setSchedTime]       = useState("09:00");
+  const [schedTime, setSchedTime]       = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+  });
   const [schedTz, setSchedTz]           = useState("Asia/Kolkata");
   const [inviteeInput, setInviteeInput] = useState("");
   const [invitees, setInvitees]         = useState([]);
@@ -88,14 +91,29 @@ export default function Home() {
     const pendingType     = sessionStorage.getItem("pending_meeting_type");
     const pendingSchedule = sessionStorage.getItem("pending_schedule");
     if (pendingName) {
+      const returnConfirmed = sessionStorage.getItem("pending_return_confirmed");
+
+      // Only process pending meetings when Pricing explicitly confirmed completion.
+      // If user pressed browser Back from /pricing the flag won't be set — clear
+      // everything and stay on home page without creating any meeting.
+      if (!returnConfirmed) {
+        sessionStorage.removeItem("pending_meeting_name");
+        sessionStorage.removeItem("pending_meeting_settings");
+        sessionStorage.removeItem("pending_meeting_type");
+        sessionStorage.removeItem("pending_schedule");
+        listMeetings().then(setMeetings).catch(() => {});
+        return;
+      }
+
+      // Pricing was completed — clear all pending keys including the flag
       sessionStorage.removeItem("pending_meeting_name");
       sessionStorage.removeItem("pending_meeting_settings");
       sessionStorage.removeItem("pending_meeting_type");
       sessionStorage.removeItem("pending_schedule");
+      sessionStorage.removeItem("pending_return_confirmed");
       const s = pendingSettings ? JSON.parse(pendingSettings) : DEFAULT_SETTINGS;
 
       if (pendingType === "scheduled" && pendingSchedule) {
-        // Restore scheduled meeting — just create and show in list, don't start
         const sched = JSON.parse(pendingSchedule);
         const localDateTimeStr = `${sched.date}T${sched.time}:00`;
         createMeeting(pendingName, s, localDateTimeStr, sched.invitees, sched.tz)
@@ -112,17 +130,6 @@ export default function Home() {
             });
           })
           .catch((err) => setError(err.message));
-      } else {
-        // Instant meeting — create and start
-        createMeeting(pendingName, s)
-          .then((data) => {
-            setMeetings((prev) => [data, ...prev]);
-            setActiveTab("instant");
-            return getHostToken(data.room_code).then(({ token, name }) => {
-              navigate(`/${data.room_code}`, { state: { hostToken: token, hostName: name } });
-            });
-          })
-          .catch((err) => setError(err.message));
       }
       return;
     }
@@ -134,6 +141,10 @@ export default function Home() {
 
   const handleInstantMeeting = async () => {
     setShowCreateDrop(false);
+    if (!/[a-zA-Z0-9]/.test(meetingName.trim())) {
+      setError("Meeting name must contain at least one letter or number.");
+      return;
+    }
     if (!isLoggedIn()) {
       sessionStorage.setItem("pending_meeting_name",     meetingName.trim());
       sessionStorage.setItem("pending_meeting_settings", JSON.stringify(settings));
@@ -176,7 +187,10 @@ export default function Home() {
   const handleSchedule = async (e) => {
     e.preventDefault();
     if (!meetingName.trim()) return;
+    if (!/[a-zA-Z0-9]/.test(meetingName.trim())) { setError("Meeting name must contain at least one letter or number."); return; }
     if (!schedDate || !schedTime) { setError("Please select a date and time."); return; }
+    const selectedDt = new Date(`${schedDate}T${schedTime}:00`);
+    if (selectedDt <= new Date()) { setError("Scheduled time must be in the future."); return; }
 
     // Auto-add any email still typed in the input field
     const pendingEmail = inviteeInput.trim().toLowerCase();
@@ -198,9 +212,22 @@ export default function Home() {
     setLoading(true);
     setError("");
     try {
+      const user = await getMe();
+      if (!user.plan) {
+        sessionStorage.setItem("pending_meeting_name",     meetingName.trim());
+        sessionStorage.setItem("pending_meeting_settings", JSON.stringify(settings));
+        sessionStorage.setItem("pending_meeting_type",     "scheduled");
+        sessionStorage.setItem("pending_schedule",         JSON.stringify({
+          date: schedDate, time: schedTime, tz: schedTz, invitees: finalInvitees,
+        }));
+        navigate("/pricing");
+        return;
+      }
       const localDateTimeStr = `${schedDate}T${schedTime}:00`;
       const data = await createMeeting(meetingName.trim(), settings, localDateTimeStr, finalInvitees, schedTz);
+      // Optimistic update + server sync
       setMeetings((prev) => [data, ...prev]);
+      listMeetings().then(setMeetings).catch(() => {});
       setScheduleSuccess({
         name: meetingName.trim(),
         date: schedDate,
@@ -360,8 +387,23 @@ export default function Home() {
               type="text"
               placeholder="Enter a meeting name or topic…"
               value={meetingName}
-              onChange={(e) => { setMeetingName(e.target.value); setShowCreateDrop(false); setShowScheduleForm(false); }}
-              maxLength={80}
+              onChange={(e) => {
+                // 1. Strip emojis and non-ASCII symbols, then strip disallowed ASCII chars
+                let val = e.target.value
+                  .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")   // emoji blocks
+                  .replace(/[\u{2600}-\u{27BF}]/gu, "")      // misc symbols & dingbats
+                  .replace(/[^\x20-\x7E]/g, "")              // any remaining non-ASCII
+                  .replace(/[^a-zA-Z0-9 _.@()]/g, "");       // disallowed ASCII chars
+                // 2. Block SQL / script injection keyword patterns (case-insensitive)
+                const sqlPattern = /\b(SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|UNION|OR|AND|NOT|NULL|WHERE|FROM|INTO|SET|CAST|CONVERT|DECLARE|TRUNCATE|SCRIPT|ALERT)\b/gi;
+                val = val.replace(sqlPattern, "");
+                // 3. Collapse multiple spaces left after stripping
+                val = val.replace(/ {2,}/g, " ");
+                setMeetingName(val);
+                setShowCreateDrop(false);
+                setShowScheduleForm(false);
+              }}
+              maxLength={100}
               autoFocus
               onKeyDown={(e) => { if (e.key === "Enter" && meetingName.trim()) handleInstantMeeting(); }}
             />
@@ -455,7 +497,7 @@ export default function Home() {
                   onChange={(e) => setSchedTz(e.target.value)}
                 >
                   {TZ_OPTIONS.map((tz) => (
-                    <option key={tz} value={tz}>{tz}</option>
+                    <option key={tz} value={tz} style={{ background: "#2a2a3d", color: "#e8eaed" }}>{tz}</option>
                   ))}
                 </select>
               </div>
@@ -472,7 +514,32 @@ export default function Home() {
                     onChange={(e) => setInviteeInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addInvitee(); } }}
                   />
-                  <button type="button" style={styles.addInviteeBtn} onClick={addInvitee}>Add</button>
+                  {(() => {
+                    const email = inviteeInput.trim().toLowerCase();
+                    const isValid = !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !invitees.includes(email);
+                    return (
+                      <button
+                        type="button"
+                        onClick={addInvitee}
+                        disabled={!isValid}
+                        title={!email ? "Enter an email address" : !isValid ? "Invalid or duplicate email" : ""}
+                        style={{
+                          ...styles.addInviteeBtn,
+                          opacity: isValid ? 1 : 0.45,
+                          cursor: isValid ? "pointer" : "not-allowed",
+                        }}
+                      >
+                        {isValid ? "Add" : (
+                          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                            </svg>
+                            Add
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
                 {invitees.length > 0 && (
                   <div style={styles.inviteeTags}>
@@ -958,6 +1025,13 @@ const styles = {
     fontWeight: "500",
     color: "#202124",
     marginBottom: "2px",
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    textOverflow: "ellipsis",
   },
   itemCode: {
     fontSize: "12px",
@@ -1180,8 +1254,8 @@ const styles = {
     textAlign: "left",
   },
   schedInput: {
-    background: "rgba(255,255,255,.08)",
-    border: "1px solid rgba(255,255,255,.18)",
+    background: "#2a2a3d",
+    border: "1px solid rgba(255,255,255,.22)",
     borderRadius: "10px",
     padding: "12px 14px",
     fontSize: "14px",

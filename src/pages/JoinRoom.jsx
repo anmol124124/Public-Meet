@@ -101,7 +101,7 @@ export default function JoinRoom() {
           </div>
         </a>
 
-        <h1 style={styles.heading}>{meeting.name}</h1>
+        <h1 style={styles.heading} title={meeting.name}>{meeting.name}</h1>
         <p style={styles.roomCode}>Room · {roomCode}</p>
 
         <form onSubmit={joinNow} style={styles.form}>
@@ -153,6 +153,8 @@ const styles = {
     width: "100%",
     maxWidth: "400px",
     boxShadow: "0 8px 40px rgba(0,0,0,.5)",
+    overflow: "hidden",
+    minWidth: 0,
   },
   brand: {
     display: "flex",
@@ -170,6 +172,13 @@ const styles = {
     fontWeight: "600",
     color: "#e8eaed",
     marginBottom: "4px",
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: 3,
+    WebkitBoxOrient: "vertical",
+    textOverflow: "ellipsis",
   },
   roomCode: {
     fontSize: "13px",
