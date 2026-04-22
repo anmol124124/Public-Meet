@@ -46,16 +46,16 @@ export default function Auth() {
         }
       }
 
-      // If there's a pending meeting to start, route through pricing
+      // If there's a pending INSTANT meeting, route through pricing first
       const hasPending = !!sessionStorage.getItem("pending_meeting_name");
-      if (hasPending) {
+      const pendingType = sessionStorage.getItem("pending_meeting_type");
+      if (hasPending && pendingType !== "scheduled") {
         // New signup always sees pricing; returning login users skip if they have a plan
         if (isSignup) {
           navigate("/pricing", { replace: true });
         } else {
           const user = await getMe();
           if (user.plan) {
-            // Already paid — go back to home which will auto-create the meeting
             navigate("/", { replace: true });
           } else {
             navigate("/pricing", { replace: true });

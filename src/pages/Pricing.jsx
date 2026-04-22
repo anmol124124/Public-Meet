@@ -168,6 +168,8 @@ export default function Pricing() {
       const settings = pendingSettings ? JSON.parse(pendingSettings) : {};
       sessionStorage.removeItem("pending_meeting_name");
       sessionStorage.removeItem("pending_meeting_settings");
+      sessionStorage.removeItem("pending_meeting_type");
+      sessionStorage.removeItem("pending_schedule");
       const data         = await createMeeting(name, settings);
       const { token, name: hostName } = await getHostToken(data.room_code);
       navigate(`/${data.room_code}`, { state: { hostToken: token, hostName }, replace: true });

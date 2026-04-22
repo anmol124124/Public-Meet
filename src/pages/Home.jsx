@@ -62,7 +62,7 @@ export default function Home() {
   const navigate = useNavigate();
 
   // Schedule-related state
-  const [showActions, setShowActions]   = useState(false);   // show action buttons after "Create Meeting"
+  const [showCreateDrop, setShowCreateDrop] = useState(false);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [schedDate, setSchedDate]       = useState("");
   const [schedTime, setSchedTime]       = useState("09:00");
@@ -82,23 +82,48 @@ export default function Home() {
 
     getMe().then(u => setUserEmail(u.email)).catch(() => {});
 
-    // Auto-create a meeting that was started before login
+    // Auto-complete a meeting action that was interrupted by login
     const pendingName     = sessionStorage.getItem("pending_meeting_name");
     const pendingSettings = sessionStorage.getItem("pending_meeting_settings");
+    const pendingType     = sessionStorage.getItem("pending_meeting_type");
+    const pendingSchedule = sessionStorage.getItem("pending_schedule");
     if (pendingName) {
       sessionStorage.removeItem("pending_meeting_name");
       sessionStorage.removeItem("pending_meeting_settings");
+      sessionStorage.removeItem("pending_meeting_type");
+      sessionStorage.removeItem("pending_schedule");
       const s = pendingSettings ? JSON.parse(pendingSettings) : DEFAULT_SETTINGS;
-      createMeeting(pendingName, s)
-        .then((data) => {
-          setMeetings((prev) => [data, ...prev]);
-          setActiveTab("upcoming");
-          // Go straight to the join page as host
-          return getHostToken(data.room_code).then(({ token, name }) => {
-            navigate(`/${data.room_code}`, { state: { hostToken: token, hostName: name } });
-          });
-        })
-        .catch((err) => setError(err.message));
+
+      if (pendingType === "scheduled" && pendingSchedule) {
+        // Restore scheduled meeting — just create and show in list, don't start
+        const sched = JSON.parse(pendingSchedule);
+        const localDateTimeStr = `${sched.date}T${sched.time}:00`;
+        createMeeting(pendingName, s, localDateTimeStr, sched.invitees, sched.tz)
+          .then((data) => {
+            setMeetings((prev) => [data, ...prev]);
+            setActiveTab("scheduled");
+            setScheduleSuccess({
+              name: pendingName,
+              date: sched.date,
+              time: sched.time,
+              tz: sched.tz,
+              invitees: sched.invitees,
+              joinUrl: data.url,
+            });
+          })
+          .catch((err) => setError(err.message));
+      } else {
+        // Instant meeting — create and start
+        createMeeting(pendingName, s)
+          .then((data) => {
+            setMeetings((prev) => [data, ...prev]);
+            setActiveTab("upcoming");
+            return getHostToken(data.room_code).then(({ token, name }) => {
+              navigate(`/${data.room_code}`, { state: { hostToken: token, hostName: name } });
+            });
+          })
+          .catch((err) => setError(err.message));
+      }
       return;
     }
 
@@ -107,15 +132,8 @@ export default function Home() {
       .catch(() => {/* silently ignore — user will still see empty state */});
   }, []);
 
-  const handleCreate = (e) => {
-    e.preventDefault();
-    if (!meetingName.trim()) return;
-    setShowActions(true);
-    setShowScheduleForm(false);
-    setError("");
-  };
-
   const handleInstantMeeting = async () => {
+    setShowCreateDrop(false);
     if (!isLoggedIn()) {
       sessionStorage.setItem("pending_meeting_name",     meetingName.trim());
       sessionStorage.setItem("pending_meeting_settings", JSON.stringify(settings));
@@ -160,9 +178,19 @@ export default function Home() {
     if (!meetingName.trim()) return;
     if (!schedDate || !schedTime) { setError("Please select a date and time."); return; }
 
+    // Auto-add any email still typed in the input field
+    const pendingEmail = inviteeInput.trim().toLowerCase();
+    const finalInvitees = (pendingEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pendingEmail) && !invitees.includes(pendingEmail))
+      ? [...invitees, pendingEmail]
+      : [...invitees];
+
     if (!isLoggedIn()) {
       sessionStorage.setItem("pending_meeting_name",     meetingName.trim());
       sessionStorage.setItem("pending_meeting_settings", JSON.stringify(settings));
+      sessionStorage.setItem("pending_meeting_type",     "scheduled");
+      sessionStorage.setItem("pending_schedule",         JSON.stringify({
+        date: schedDate, time: schedTime, tz: schedTz, invitees: finalInvitees,
+      }));
       navigate("/auth?redirect=/");
       return;
     }
@@ -170,13 +198,6 @@ export default function Home() {
     setLoading(true);
     setError("");
     try {
-      // Auto-add any email still typed in the input field
-      const pendingEmail = inviteeInput.trim().toLowerCase();
-      const finalInvitees = (pendingEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pendingEmail) && !invitees.includes(pendingEmail))
-        ? [...invitees, pendingEmail]
-        : [...invitees];
-
-      // Send raw local datetime string + timezone — backend converts to UTC using zoneinfo
       const localDateTimeStr = `${schedDate}T${schedTime}:00`;
       const data = await createMeeting(meetingName.trim(), settings, localDateTimeStr, finalInvitees, schedTz);
       setMeetings((prev) => [data, ...prev]);
@@ -192,7 +213,6 @@ export default function Home() {
       setInvitees([]);
       setSchedDate("");
       setInviteeInput("");
-      setShowActions(false);
       setShowScheduleForm(false);
       setActiveTab("scheduled");
       setPageSched(1);
@@ -333,57 +353,75 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── Step 1: Title input ── */}
-          <form onSubmit={handleCreate} style={styles.inputRow}>
+          {/* ── Title input + split button ── */}
+          <div style={styles.inputRow}>
             <input
               style={styles.heroInput}
               type="text"
               placeholder="Enter a meeting name or topic…"
               value={meetingName}
-              onChange={(e) => { setMeetingName(e.target.value); setShowActions(false); setShowScheduleForm(false); }}
+              onChange={(e) => { setMeetingName(e.target.value); setShowCreateDrop(false); setShowScheduleForm(false); }}
               maxLength={80}
               autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter" && meetingName.trim()) handleInstantMeeting(); }}
             />
-            <button
-              type="submit"
-              style={{
-                ...styles.heroBtn,
-                opacity: !meetingName.trim() ? 0.6 : 1,
-                cursor: !meetingName.trim() ? "default" : "pointer",
-              }}
-              disabled={!meetingName.trim()}
-            >
-              Create Meeting
-            </button>
-          </form>
-
-          {/* ── Step 2: Action buttons ── */}
-          {showActions && (
-            <div style={styles.actionButtons}>
+            {/* Split button */}
+            <div style={{ position: "relative", display: "flex", flexShrink: 0 }}>
               <button
-                style={{ ...styles.actionBtn, ...styles.actionBtnInstant, opacity: loading ? 0.6 : 1 }}
-                disabled={loading}
+                style={{
+                  ...styles.heroBtn,
+                  borderRadius: 0,
+                  opacity: !meetingName.trim() || loading ? 0.6 : 1,
+                  cursor: !meetingName.trim() || loading ? "default" : "pointer",
+                  paddingRight: "16px",
+                }}
+                disabled={!meetingName.trim() || loading}
                 onClick={handleInstantMeeting}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
-                </svg>
-                {loading ? "Starting…" : "Start Instant Meeting"}
+                {loading ? "Starting…" : "New Meeting"}
               </button>
               <button
-                style={{ ...styles.actionBtn, ...styles.actionBtnSchedule }}
-                onClick={() => { setShowScheduleForm((v) => !v); setError(""); }}
+                style={{
+                  ...styles.heroBtn,
+                  borderLeft: "1px solid rgba(255,255,255,.25)",
+                  borderRadius: "0 12px 12px 0",
+                  padding: "16px 14px",
+                  opacity: !meetingName.trim() ? 0.6 : 1,
+                  cursor: !meetingName.trim() ? "default" : "pointer",
+                }}
+                disabled={!meetingName.trim()}
+                onClick={(e) => { e.stopPropagation(); setShowCreateDrop(v => !v); setShowScheduleForm(false); }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: "block", transform: showCreateDrop ? "rotate(180deg)" : "none", transition: "transform .15s" }}>
+                  <path d="M7 10l5 5 5-5z"/>
                 </svg>
-                Schedule Meeting
               </button>
-            </div>
-          )}
 
-          {/* ── Step 2b: Schedule form (inline, expands below) ── */}
-          {showActions && showScheduleForm && (
+              {/* Dropdown */}
+              {showCreateDrop && (
+                <>
+                  <div style={{ position: "fixed", inset: 0, zIndex: 9 }} onClick={() => setShowCreateDrop(false)} />
+                  <div style={styles.createDropdown}>
+                    <button style={styles.createDropItem} onClick={handleInstantMeeting}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                      </svg>
+                      Start Instant Meeting
+                    </button>
+                    <button style={styles.createDropItem} onClick={() => { setShowCreateDrop(false); setShowScheduleForm(v => !v); setError(""); }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                      </svg>
+                      Schedule Meeting
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── Schedule form (expands below) ── */}
+          {showScheduleForm && (
             <form onSubmit={handleSchedule} style={styles.scheduleForm}>
               <div style={styles.schedRow}>
                 <div style={styles.schedField}>
@@ -465,7 +503,7 @@ export default function Home() {
             </form>
           )}
 
-          {error && !showScheduleForm && <p style={styles.heroError}>{error}</p>}
+          {error && <p style={styles.heroError}>{error}</p>}
 
           {/* ── Settings toggle ── */}
           <button
@@ -793,7 +831,7 @@ const styles = {
     maxWidth: "560px",
     margin: "0 auto 16px",
     borderRadius: "12px",
-    overflow: "hidden",
+    overflow: "visible",
     boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
   },
   heroInput: {
@@ -805,6 +843,7 @@ const styles = {
     background: "#fff",
     color: "#202124",
     minWidth: 0,
+    borderRadius: "12px 0 0 12px",
   },
   heroBtn: {
     padding: "16px 28px",
@@ -1088,37 +1127,31 @@ const styles = {
     transition: "transform .2s",
   },
 
-  // Action buttons (shown after "Create Meeting")
-  actionButtons: {
-    display: "flex",
-    gap: "10px",
-    maxWidth: "560px",
-    margin: "12px auto 0",
-    width: "100%",
+  createDropdown: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    right: 0,
+    background: "#2d2e31",
+    border: "1px solid rgba(255,255,255,.13)",
+    borderRadius: "10px",
+    minWidth: "210px",
+    boxShadow: "0 8px 32px rgba(0,0,0,.5)",
+    zIndex: 10,
+    overflow: "hidden",
   },
-  actionBtn: {
-    flex: 1,
+  createDropItem: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-    padding: "13px 16px",
-    borderRadius: "10px",
+    gap: "10px",
+    width: "100%",
+    padding: "12px 16px",
+    background: "transparent",
     border: "none",
-    fontSize: "14px",
-    fontWeight: "600",
-    cursor: "pointer",
-    transition: "opacity .15s, transform .1s",
-  },
-  actionBtnInstant: {
-    background: "linear-gradient(135deg,#1a73e8,#4d94ff)",
-    color: "#fff",
-    boxShadow: "0 4px 16px rgba(26,115,232,.4)",
-  },
-  actionBtnSchedule: {
-    background: "rgba(255,255,255,.10)",
-    border: "1px solid rgba(255,255,255,.2)",
     color: "#e8eaed",
+    fontSize: "14px",
+    fontWeight: "500",
+    cursor: "pointer",
+    textAlign: "left",
   },
 
   // Schedule form
