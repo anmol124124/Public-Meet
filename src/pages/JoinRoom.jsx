@@ -92,12 +92,14 @@ export default function JoinRoom() {
       <div style={styles.card}>
 
         {/* Brand */}
-        <div style={styles.brand}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="#1a73e8">
-            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-          </svg>
-          <span style={styles.brandName}>RoomLy</span>
-        </div>
+        <a href="/" style={{ textDecoration: "none" }}>
+          <div style={{ ...styles.brand, cursor: "pointer" }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#1a73e8">
+              <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+            </svg>
+            <span style={styles.brandName}>RoomLy</span>
+          </div>
+        </a>
 
         <h1 style={styles.heading}>{meeting.name}</h1>
         <p style={styles.roomCode}>Room · {roomCode}</p>
