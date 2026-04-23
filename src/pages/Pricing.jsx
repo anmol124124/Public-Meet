@@ -7,29 +7,30 @@ const PLANS = [
     id:       "free",
     name:     "Starter",
     price:    "$0",
-    period:   "forever",
+    period:   "/ month",
+    subline:  "Free forever",
     color:    "#5f6368",
     features: ["5-minute meetings", "Up to 2 participants", "Chat & screen share", "No credit card required"],
-    cta:      "Start for Free",
+    cta:      "Start Free",
   },
   {
     id:       "basic",
     name:     "Basic",
     price:    "$9.99",
-    period:   "/month",
+    period:   "/ month",
     color:    "#1a73e8",
     features: ["10-minute meetings", "Up to 4 participants", "Chat & screen share", "Meeting recordings"],
-    cta:      "Choose Basic",
+    cta:      "Upgrade to Basic",
   },
   {
     id:       "pro",
     name:     "Pro",
     price:    "$29.99",
-    period:   "/month",
+    period:   "/ month",
     color:    "#6c63ff",
     popular:  true,
     features: ["Unlimited meeting duration", "Up to 6 participants", "Everything in Basic", "Priority support"],
-    cta:      "Choose Pro",
+    cta:      "Upgrade to Pro",
   },
   {
     id:       "enterprise",
@@ -216,7 +217,7 @@ export default function Pricing() {
           <span style={{ fontSize: 18, fontWeight: 700, color: "#e8eaed" }}>RoomLy</span>
         </div>
         <div style={{ fontSize: 13, color: "#9aa0a6" }}>
-          Starting: <span style={{ color: "#e8eaed", fontWeight: 500 }}>"{meetingTitle}"</span>
+          Meeting: <span style={{ color: "#e8eaed", fontWeight: 500 }}>"{meetingTitle}"</span>
         </div>
       </div>
 
@@ -245,9 +246,12 @@ export default function Pricing() {
                 <div style={{ ...s.badge, background: plan.color }}>Most Popular</div>
               )}
               <div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: plan.color, marginBottom: 8 }}>{plan.name}</div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 4, marginBottom: 20 }}>
-                <span style={{ fontSize: plan.price === "Custom" ? 24 : 32, fontWeight: 800, color: "#e8eaed" }}>{plan.price}</span>
-                {plan.period && <span style={{ fontSize: 13, color: "#9aa0a6", paddingBottom: 6 }}>{plan.period}</span>}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
+                  <span style={{ fontSize: plan.price === "Custom" ? 24 : 32, fontWeight: 800, color: "#e8eaed" }}>{plan.price}</span>
+                  {plan.period && <span style={{ fontSize: 13, color: "#9aa0a6", paddingBottom: 6 }}>{plan.period}</span>}
+                </div>
+                {plan.subline && <div style={{ fontSize: 11, color: "#9aa0a6", marginTop: 2 }}>{plan.subline}</div>}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28, flex: 1 }}>
                 {plan.features.map((f, i) => (
