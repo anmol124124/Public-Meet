@@ -32,13 +32,26 @@ function PasswordHint({ password }) {
 }
 
 export default function Auth() {
-  const [tab, setTab]           = useState("signup"); // default to signup
-  const [name, setName]         = useState("");
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw]     = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
+  const [tab, setTab]             = useState("signup"); // default to signup
+  const [name, setName]           = useState("");
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showPw, setShowPw]       = useState(false);
+  const [showCpw, setShowCpw]     = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
+
+  function switchTab(t) {
+    setTab(t);
+    setName("");
+    setEmail("");
+    setPassword("");
+    setConfirmPw("");
+    setShowPw(false);
+    setShowCpw(false);
+    setError("");
+  }
 
   const navigate   = useNavigate();
   const [params]   = useSearchParams();
@@ -53,6 +66,10 @@ export default function Auth() {
     }
     if (tab === "signup" && !PW_RULES.every(r => r.test(password))) {
       setError("Password does not meet the required criteria.");
+      return;
+    }
+    if (tab === "signup" && password !== confirmPw) {
+      setError("Passwords do not match.");
       return;
     }
     setLoading(true);
@@ -136,13 +153,13 @@ export default function Auth() {
         <div style={styles.tabs}>
           <button
             style={{ ...styles.tab, ...(tab === "signup" ? styles.tabActive : {}) }}
-            onClick={() => { setTab("signup"); setError(""); }}
+            onClick={() => switchTab("signup")}
           >
             Sign up
           </button>
           <button
             style={{ ...styles.tab, ...(tab === "login" ? styles.tabActive : {}) }}
-            onClick={() => { setTab("login"); setError(""); }}
+            onClick={() => switchTab("login")}
           >
             Sign in
           </button>
@@ -203,6 +220,39 @@ export default function Auth() {
           </div>
 
           {tab === "signup" && <PasswordHint password={password} />}
+
+          {tab === "signup" && (
+            <div style={{ position: "relative" }}>
+              <input
+                style={{ ...styles.input, paddingRight: "44px" }}
+                type={showCpw ? "text" : "password"}
+                placeholder="Confirm password"
+                value={confirmPw}
+                onChange={(e) => setConfirmPw(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowCpw(v => !v)}
+                style={styles.eyeBtn}
+                tabIndex={-1}
+                aria-label={showCpw ? "Hide password" : "Show password"}
+              >
+                {showCpw ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            </div>
+          )}
 
           {error && <p style={styles.error}>{error}</p>}
 

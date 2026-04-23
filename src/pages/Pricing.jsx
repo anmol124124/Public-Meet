@@ -5,11 +5,11 @@ import { getMe, activatePlan, createMeeting, getHostToken, isLoggedIn } from "..
 const PLANS = [
   {
     id:       "free",
-    name:     "Free",
+    name:     "Starter",
     price:    "$0",
     period:   "forever",
     color:    "#5f6368",
-    features: ["40-minute meetings", "Up to 100 participants", "Chat & screen share", "No credit card required"],
+    features: ["5-minute meetings", "Up to 2 participants", "Chat & screen share", "No credit card required"],
     cta:      "Start for Free",
   },
   {
@@ -18,7 +18,7 @@ const PLANS = [
     price:    "$9.99",
     period:   "/month",
     color:    "#1a73e8",
-    features: ["24-hour meetings", "Up to 100 participants", "Chat & screen share", "Meeting recordings"],
+    features: ["10-minute meetings", "Up to 4 participants", "Chat & screen share", "Meeting recordings"],
     cta:      "Choose Basic",
   },
   {
@@ -28,7 +28,7 @@ const PLANS = [
     period:   "/month",
     color:    "#6c63ff",
     popular:  true,
-    features: ["Unlimited meeting duration", "Up to 300 participants", "Everything in Basic", "Priority support"],
+    features: ["Unlimited meeting duration", "Up to 6 participants", "Everything in Basic", "Priority support"],
     cta:      "Choose Pro",
   },
   {
@@ -37,7 +37,7 @@ const PLANS = [
     price:    "Custom",
     period:   "",
     color:    "#f59e0b",
-    features: ["Unlimited everything", "White-label branding", "Dedicated support", "Custom SLA & SSO"],
+    features: ["Unlimited everything", "Unlimited participants", "White-label branding", "Dedicated support & SSO"],
     cta:      "Contact Sales",
   },
 ];
