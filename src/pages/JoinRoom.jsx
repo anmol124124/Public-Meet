@@ -15,13 +15,20 @@ export default function JoinRoom() {
   const hostToken = location.state?.hostToken || null;
   const hostName  = location.state?.hostName  || "";
 
-  const [meeting, setMeeting]   = useState(null);
-  const [notFound, setNotFound] = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
-  const [name, setName]         = useState(hostName);
+  const [meeting, setMeeting]       = useState(null);
+  const [notFound, setNotFound]     = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState("");
+  const [name, setName]             = useState(hostName);
+  const [localEnded, setLocalEnded] = useState(false);
 
   useEffect(() => {
+    try {
+      if (localStorage.getItem("meeting_ended_" + roomCode) === "1") {
+        setLocalEnded(true);
+        return;
+      }
+    } catch(_) {}
     getMeeting(roomCode)
       .then(setMeeting)
       .catch(() => setNotFound(true));
@@ -52,6 +59,19 @@ export default function JoinRoom() {
       setLoading(false);
     }
   };
+
+  if (localEnded) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.card}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏱️</div>
+          <h2 style={styles.heading}>Meeting has ended</h2>
+          <p style={styles.subtext}>This meeting's time limit was reached and is no longer available.</p>
+          <button style={styles.btn} onClick={() => navigate("/")}>Go home</button>
+        </div>
+      </div>
+    );
+  }
 
   if (!meeting && !notFound) {
     return (

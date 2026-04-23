@@ -51,6 +51,7 @@ export default function Home() {
   const [meetingName, setMeetingName] = useState("");
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState("");
+  const [toast, setToast]             = useState("");
   const [meetings, setMeetings]       = useState([]);
   const [activeTab, setActiveTab]     = useState("instant");
   const [copied, setCopied]           = useState(null);
@@ -75,7 +76,14 @@ export default function Home() {
   const [scheduleSuccess, setScheduleSuccess] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [userEmail, setUserEmail]     = useState("");
-  const inviteeRef = useRef(null);
+  const inviteeRef   = useRef(null);
+  const toastTimer   = useRef(null);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 3500);
+  };
 
   const toggleSetting = (key) =>
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -258,7 +266,7 @@ export default function Home() {
           state: { hostToken: token, hostName: name },
         });
       } catch (err) {
-        setError(err.message);
+        showToast(err.message);
       }
     } else {
       navigate(`/auth?redirect=/${roomCode}/room&roomCode=${roomCode}`);
@@ -274,6 +282,13 @@ export default function Home() {
 
   return (
     <div style={styles.page}>
+      {/* ── Toast ── */}
+      {toast && (
+        <div style={styles.toast}>
+          <span>⚠ {toast}</span>
+          <button onClick={() => setToast("")} style={styles.toastClose}>✕</button>
+        </div>
+      )}
       {/* ── Navbar ── */}
       <nav style={styles.nav}>
         <div style={styles.brand}>
@@ -789,6 +804,35 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     fontFamily: "'Google Sans', Roboto, -apple-system, sans-serif",
+  },
+
+  toast: {
+    position: "fixed",
+    top: "20px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "#323232",
+    color: "#fff",
+    padding: "12px 20px",
+    borderRadius: "10px",
+    fontSize: "14px",
+    fontWeight: "500",
+    zIndex: 9999,
+    boxShadow: "0 4px 20px rgba(0,0,0,.35)",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    maxWidth: "420px",
+    width: "max-content",
+  },
+  toastClose: {
+    background: "none",
+    border: "none",
+    color: "#aaa",
+    cursor: "pointer",
+    fontSize: "14px",
+    padding: 0,
+    lineHeight: 1,
   },
 
   // Navbar
