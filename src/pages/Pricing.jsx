@@ -10,7 +10,7 @@ const PLANS = [
     period:   "/ month",
     subline:  "Free forever",
     color:    "#5f6368",
-    features: ["5-minute meetings", "Up to 2 participants", "Chat & screen share", "No credit card required"],
+    features: ["Up to 5-minute meeting duration", "Up to 2 participants", "Chat & screen share", "No credit card required"],
     cta:      "Start Free",
   },
   {
@@ -19,7 +19,7 @@ const PLANS = [
     price:    "$9.99",
     period:   "/ month",
     color:    "#1a73e8",
-    features: ["10-minute meetings", "Up to 4 participants", "Chat & screen share", "Meeting recordings"],
+    features: ["Up to 10-minute meeting duration", "Up to 4 participants", "Chat & screen share", "Meeting recordings"],
     cta:      "Upgrade to Basic",
   },
   {
@@ -38,10 +38,55 @@ const PLANS = [
     price:    "Custom",
     period:   "",
     color:    "#f59e0b",
-    features: ["Unlimited everything", "Unlimited participants", "White-label branding", "Dedicated support & SSO"],
+    features: ["Unlimited meeting duration", "Unlimited participants", "White-label branding", "Dedicated support & SSO"],
     cta:      "Contact Sales",
   },
 ];
+
+function HoverCard({ plan, children }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        ...s.card,
+        borderColor: plan.popular ? plan.color : hovered ? "rgba(255,255,255,.25)" : "rgba(255,255,255,.1)",
+        boxShadow: plan.popular
+          ? `0 0 0 2px ${plan.color}, 0 ${hovered ? 16 : 8}px ${hovered ? 48 : 40}px rgba(0,0,0,.5)`
+          : hovered ? "0 8px 32px rgba(0,0,0,.5)" : "none",
+        transform: hovered ? "translateY(-3px)" : "translateY(0)",
+        transition: "transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease",
+      }}
+    >
+      {children(hovered)}
+    </div>
+  );
+}
+
+function HoverButton({ baseColor, style, onClick, disabled, children }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        ...s.planBtn,
+        background: baseColor,
+        filter: hovered && !disabled ? "brightness(1.15)" : "none",
+        transform: hovered && !disabled ? "translateY(-1px)" : "translateY(0)",
+        boxShadow: hovered && !disabled ? `0 4px 16px rgba(0,0,0,.35)` : "none",
+        transition: "filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease",
+        cursor: disabled ? "not-allowed" : "pointer",
+        ...style,
+      }}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
+}
 
 function PaymentModal({ plan, onSuccess, onCancel }) {
   const [loading, setLoading] = useState(false);
@@ -210,14 +255,24 @@ export default function Pricing() {
     <div style={s.page}>
       {/* Header */}
       <div style={s.header}>
-        <div style={s.brand}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="#1a73e8">
-            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
-          </svg>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#e8eaed" }}>RoomLy</span>
-        </div>
-        <div style={{ fontSize: 13, color: "#9aa0a6" }}>
-          Meeting: <span style={{ color: "#e8eaed", fontWeight: 500 }}>"{meetingTitle}"</span>
+        <a href="/" style={{ textDecoration: "none" }}>
+          <div style={{ ...s.brand, cursor: "pointer" }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#1a73e8">
+              <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+            </svg>
+            <span style={{ fontSize: 18, fontWeight: 700, color: "#e8eaed" }}>RoomLy</span>
+          </div>
+        </a>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ fontSize: 13, color: "#9aa0a6" }}>
+            Meeting: <span style={{ color: "#e8eaed", fontWeight: 500 }}>"{meetingTitle}"</span>
+          </div>
+          <button
+            onClick={() => navigate(-1)}
+            style={s.backBtn}
+          >
+            ← Back
+          </button>
         </div>
       </div>
 
@@ -237,48 +292,50 @@ export default function Pricing() {
           const isCurrent = userPlan === plan.id || (plan.id === "free" && !userPlan);
           const isLoading = loadingPlan === plan.id;
           return (
-            <div key={plan.id} style={{
-              ...s.card,
-              borderColor: plan.popular ? plan.color : "rgba(255,255,255,.1)",
-              boxShadow: plan.popular ? `0 0 0 2px ${plan.color}` : "none",
-            }}>
-              {plan.popular && (
-                <div style={{ ...s.badge, background: plan.color }}>Most Popular</div>
-              )}
-              <div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: plan.color, marginBottom: 8 }}>{plan.name}</div>
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
-                  <span style={{ fontSize: plan.price === "Custom" ? 24 : 32, fontWeight: 800, color: "#e8eaed" }}>{plan.price}</span>
-                  {plan.period && <span style={{ fontSize: 13, color: "#9aa0a6", paddingBottom: 6 }}>{plan.period}</span>}
-                </div>
-                {plan.subline && <div style={{ fontSize: 11, color: "#9aa0a6", marginTop: 2 }}>{plan.subline}</div>}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28, flex: 1 }}>
-                {plan.features.map((f, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#bdc1c6" }}>
-                    <span style={{ color: plan.color, fontSize: 16, lineHeight: 1 }}>✓</span>
-                    {f}
+            <HoverCard key={plan.id} plan={plan}>
+              {(cardHovered) => (
+                <>
+                  {plan.popular && (
+                    <div style={{ ...s.badge, background: plan.color }}>Most Popular</div>
+                  )}
+                  <div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: plan.color, marginBottom: 8 }}>{plan.name}</div>
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
+                      <span style={{ fontSize: plan.price === "Custom" ? 24 : 32, fontWeight: 800, color: "#e8eaed" }}>{plan.price}</span>
+                      {plan.period && <span style={{ fontSize: 13, color: "#9aa0a6", paddingBottom: 6 }}>{plan.period}</span>}
+                    </div>
+                    {plan.subline && <div style={{ fontSize: 11, color: "#9aa0a6", marginTop: 2 }}>{plan.subline}</div>}
                   </div>
-                ))}
-              </div>
-              {isCurrent && plan.id !== "free" ? (
-                <button
-                  style={{ ...s.planBtn, background: plan.color, opacity: isLoading ? 0.7 : 1 }}
-                  onClick={() => startMeeting(plan.id)}
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Starting…" : "Continue with " + plan.name}
-                </button>
-              ) : (
-                <button
-                  style={{ ...s.planBtn, background: plan.id === "free" ? "rgba(255,255,255,.1)" : plan.color, opacity: isLoading ? 0.7 : 1 }}
-                  onClick={() => handleSelect(plan)}
-                  disabled={!!loadingPlan}
-                >
-                  {isLoading ? "Starting…" : plan.cta}
-                </button>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28, flex: 1 }}>
+                    {plan.features.map((f, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#bdc1c6" }}>
+                        <span style={{ color: plan.color, fontSize: 16, lineHeight: 1 }}>✓</span>
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+                  {isCurrent && plan.id !== "free" ? (
+                    <HoverButton
+                      baseColor={plan.color}
+                      style={{ opacity: isLoading ? 0.7 : 1 }}
+                      onClick={() => startMeeting(plan.id)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Starting…" : "Continue with " + plan.name}
+                    </HoverButton>
+                  ) : (
+                    <HoverButton
+                      baseColor={plan.id === "free" ? "rgba(255,255,255,.15)" : plan.color}
+                      style={{ opacity: isLoading ? 0.7 : 1 }}
+                      onClick={() => handleSelect(plan)}
+                      disabled={!!loadingPlan}
+                    >
+                      {isLoading ? "Starting…" : plan.cta}
+                    </HoverButton>
+                  )}
+                </>
               )}
-            </div>
+            </HoverCard>
           );
         })}
       </div>
@@ -314,6 +371,15 @@ const s = {
     display: "flex",
     alignItems: "center",
     gap: 8,
+  },
+  backBtn: {
+    background: "rgba(255,255,255,.07)",
+    border: "1px solid rgba(255,255,255,.12)",
+    borderRadius: 8,
+    color: "#9aa0a6",
+    fontSize: 13,
+    padding: "6px 14px",
+    cursor: "pointer",
   },
   grid: {
     display: "flex",
