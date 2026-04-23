@@ -86,7 +86,14 @@ export default function Home() {
   };
 
   const toggleSetting = (key) =>
-    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+    setSettings((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      // If approval is turned off, also reset participant-admit (it only makes sense when approval is on)
+      if (key === "require_approval" && !next.require_approval) {
+        next.allow_participant_admit = false;
+      }
+      return next;
+    });
 
   useEffect(() => {
     if (!isLoggedIn()) return;
@@ -607,7 +614,8 @@ export default function Home() {
               {[
                 { key: "require_approval",       label: "Require host approval to join",  desc: "Guests wait for host to admit them" },
                 { key: "allow_participant_admit", label: "Participants can admit each other", desc: "Any participant can approve join requests" },
-              ].map(({ key, label, desc }) => (
+              ].filter(({ key }) => key !== "allow_participant_admit" || settings.require_approval)
+               .map(({ key, label, desc }) => (
                 <div key={key} style={{ ...styles.settingRow, borderBottom: "none" }} onClick={() => toggleSetting(key)}>
                   <div style={styles.settingInfo}>
                     <div style={styles.settingLabel}>{label}</div>
