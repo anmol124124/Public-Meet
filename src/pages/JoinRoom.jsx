@@ -98,9 +98,9 @@ export default function JoinRoom() {
     return (
       <div style={styles.page}>
         <div style={styles.card}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏱️</div>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔒</div>
           <h2 style={styles.heading}>Meeting has ended</h2>
-          <p style={styles.subtext}>This meeting has reached its time limit and is no longer available.</p>
+          <p style={styles.subtext}>This meeting is no longer available. The link has expired.</p>
           <button style={styles.btn} onClick={() => navigate("/")}>Go home</button>
         </div>
       </div>
