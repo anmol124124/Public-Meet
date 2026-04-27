@@ -828,10 +828,17 @@ function exportCSV(meetings, summaries) {
   const rows = [["Meeting", "Room Code", "Date", "Duration", "People", "Status"]];
   meetings.forEach(m => {
     const sd = summaries[m.room_code];
-    const people = sd?.participants?.length ?? "";
-    const dur = sd?.participants?.length
-      ? Math.max(...sd.participants.map(p => p.duration_seconds || 0))
-      : 0;
+    const people = sd?.unique_participant_count ?? "";
+    const joinTimes = (sd?.participants || []).map(p => new Date(p.joined_at).getTime()).filter(Boolean);
+    const startMs = joinTimes.length ? Math.min(...joinTimes) : null;
+    const endMs = sd?.ended_at
+      ? new Date(sd.ended_at).getTime()
+      : (() => {
+          if (sd?.is_active) return null;
+          const lt = (sd?.participants || []).filter(p => p.left_at).map(p => new Date(p.left_at).getTime());
+          return lt.length ? Math.max(...lt) : null;
+        })();
+    const dur = startMs && endMs ? Math.round((endMs - startMs) / 1000) : 0;
     rows.push([m.name, m.room_code, fmtTime(m.created_at), fmtDuration(dur), people, m.is_active ? "Live" : "Ended"]);
   });
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -870,15 +877,19 @@ function SummaryDetail({ meeting, summaryData, onBack }) {
     !search.trim() || p.display_name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const joinTimes = (data?.participants || []).map(p => new Date(p.joined_at).getTime()).filter(Boolean);
-  const leftTimes = (data?.participants || []).filter(p => p.left_at).map(p => new Date(p.left_at).getTime());
-  const startedAt = joinTimes.length ? new Date(Math.min(...joinTimes)) : null;
-  const endedAt   = leftTimes.length && !data?.is_active ? new Date(Math.max(...leftTimes)) : null;
+  const joinTimes  = (data?.participants || []).map(p => new Date(p.joined_at).getTime()).filter(Boolean);
+  const startedAt  = joinTimes.length ? new Date(Math.min(...joinTimes)) : null;
+  // Use server-provided ended_at (set when meeting is deactivated), fall back to max left_at
+  const endedAt = data?.ended_at
+    ? new Date(data.ended_at)
+    : (() => {
+        if (data?.is_active) return null;
+        const leftTimes = (data?.participants || []).filter(p => p.left_at).map(p => new Date(p.left_at).getTime());
+        return leftTimes.length ? new Date(Math.max(...leftTimes)) : null;
+      })();
   const meetingDuration = startedAt && endedAt
     ? Math.round((endedAt.getTime() - startedAt.getTime()) / 1000)
-    : data?.participants?.length
-      ? Math.max(...data.participants.map(p => p.duration_seconds || 0))
-      : null;
+    : null;
 
   const startFmt = fmtDetailTime(startedAt);
   const endFmt   = fmtDetailTime(endedAt);
@@ -909,8 +920,8 @@ function SummaryDetail({ meeting, summaryData, onBack }) {
         </div>
         <div className="ud-stat-card">
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>TOTAL PARTICIPANTS</div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>{loading ? "…" : (data?.participants?.length ?? 0)}</div>
-          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>joined</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>{loading ? "…" : (data?.unique_participant_count ?? 0)}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>unique</div>
         </div>
         <div className="ud-stat-card">
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>STARTED AT</div>
@@ -941,7 +952,7 @@ function SummaryDetail({ meeting, summaryData, onBack }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>Participants</span>
-            {!loading && <span style={{ fontSize: 12, color: "var(--muted)" }}>{data?.participants?.length ?? 0} total</span>}
+            {!loading && <span style={{ fontSize: 12, color: "var(--muted)" }}>{data?.unique_participant_count ?? 0} unique</span>}
           </div>
           <div style={{ position: "relative" }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }}>
