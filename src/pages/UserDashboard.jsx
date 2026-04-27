@@ -1115,7 +1115,7 @@ function SummaryPage({ meetings }) {
             style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input placeholder="Search meetings…" value={search} onChange={e => setSearch(e.target.value)}
+          <input placeholder="Search by name or room code…" value={search} onChange={e => setSearch(e.target.value)}
             style={{ width: "100%", padding: "8px 12px 8px 34px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", background: "var(--surface)", color: "var(--text)", boxSizing: "border-box" }}
           />
         </div>
