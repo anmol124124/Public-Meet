@@ -803,6 +803,57 @@ function AddOnsPage({ user, onToast, onNavMyPlan }) {
   );
 }
 
+// ── PAGINATION ───────────────────────────────────────────────────────────────
+const PAGE_SIZE = 10;
+
+function Pagination({ page, totalPages, total, pageSize, onChange }) {
+  if (totalPages <= 1) return null;
+
+  const btnStyle = (active, disabled) => ({
+    padding: "6px 11px", minWidth: 34, height: 32,
+    border: "1px solid var(--border)", borderRadius: 7, fontSize: 13,
+    cursor: disabled ? "default" : "pointer",
+    fontFamily: "inherit", fontWeight: active ? 700 : 400,
+    background: active ? "var(--primary)" : "var(--surface2)",
+    color: active ? "#fff" : disabled ? "var(--border)" : "var(--text)",
+    opacity: disabled ? 0.45 : 1,
+    transition: "background .15s, color .15s",
+    lineHeight: 1,
+  });
+
+  // Build visible page list: always show first, last, current ± 1, with ellipsis gaps
+  const pages = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    if (page > 3) pages.push("…");
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+    if (page < totalPages - 2) pages.push("…");
+    pages.push(totalPages);
+  }
+
+  const from = (page - 1) * pageSize + 1;
+  const to   = Math.min(page * pageSize, total);
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid var(--border)" }}>
+      <span style={{ fontSize: 12, color: "var(--muted)" }}>
+        Showing {from}–{to} of {total}
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <button style={btnStyle(false, page === 1)} disabled={page === 1} onClick={() => onChange(page - 1)}>‹</button>
+        {pages.map((p, i) =>
+          p === "…"
+            ? <span key={`e${i}`} style={{ fontSize: 13, color: "var(--muted)", padding: "0 2px", userSelect: "none" }}>…</span>
+            : <button key={p} style={btnStyle(p === page, false)} onClick={() => onChange(p)}>{p}</button>
+        )}
+        <button style={btnStyle(false, page === totalPages)} disabled={page === totalPages} onClick={() => onChange(page + 1)}>›</button>
+      </div>
+    </div>
+  );
+}
+
 // ── SUMMARY PAGE ─────────────────────────────────────────────────────────────
 function fmtDuration(seconds) {
   if (seconds == null || seconds <= 0) return "—";
@@ -863,9 +914,11 @@ function Av({ name, size = 32 }) {
 }
 
 function SummaryDetail({ meeting, summaryData, onBack }) {
-  const [data, setData]     = useState(summaryData || null);
-  const [loading, setLoading] = useState(!summaryData);
-  const [search, setSearch] = useState("");
+  const [data, setData]         = useState(summaryData || null);
+  const [loading, setLoading]   = useState(!summaryData);
+  const [search, setSearch]     = useState("");
+  const [partPage, setPartPage] = useState(1);
+  const [expanded, setExpanded] = useState(null); // display_name whose sessions are open
 
   useEffect(() => {
     if (summaryData) return;
@@ -873,9 +926,28 @@ function SummaryDetail({ meeting, summaryData, onBack }) {
       .then(setData).catch(() => setData(null)).finally(() => setLoading(false));
   }, [meeting.room_code, summaryData]);
 
-  const participants = (data?.participants || []).filter(p =>
-    !search.trim() || p.display_name.toLowerCase().includes(search.toLowerCase())
+  // Group all session rows by display_name and sum duration
+  const allGroups = (() => {
+    const map = {};
+    (data?.participants || []).forEach(p => {
+      const key = p.display_name;
+      if (!map[key]) {
+        map[key] = { display_name: p.display_name, role: p.role, sessions: [], totalSeconds: 0, stillIn: false };
+      }
+      map[key].sessions.push(p);
+      map[key].totalSeconds += p.duration_seconds || 0;
+      if (!p.left_at) map[key].stillIn = true;
+    });
+    // Sort sessions within each group chronologically
+    Object.values(map).forEach(g => g.sessions.sort((a, b) => new Date(a.joined_at) - new Date(b.joined_at)));
+    return Object.values(map);
+  })();
+
+  const filteredGroups = allGroups.filter(g =>
+    !search.trim() || g.display_name.toLowerCase().includes(search.toLowerCase())
   );
+  const partTotalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
+  const pagedGroups    = filteredGroups.slice((partPage - 1) * PAGE_SIZE, partPage * PAGE_SIZE);
 
   const joinTimes  = (data?.participants || []).map(p => new Date(p.joined_at).getTime()).filter(Boolean);
   const startedAt  = joinTimes.length ? new Date(Math.min(...joinTimes)) : null;
@@ -958,7 +1030,7 @@ function SummaryDetail({ meeting, summaryData, onBack }) {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }}>
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input placeholder="Search participants…" value={search} onChange={e => setSearch(e.target.value)}
+            <input placeholder="Search by name…" value={search} onChange={e => { setSearch(e.target.value); setPartPage(1); setExpanded(null); }}
               style={{ padding: "6px 12px 6px 30px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", width: 200, background: "var(--surface2)", color: "var(--text)" }}
             />
           </div>
@@ -966,49 +1038,147 @@ function SummaryDetail({ meeting, summaryData, onBack }) {
 
         {loading ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Loading…</div>
-        ) : participants.length === 0 ? (
+        ) : allGroups.length === 0 ? (
           <div className="ud-empty" style={{ padding: "36px 20px" }}>
             <p>{(data?.participants?.length ?? 0) === 0 ? "No participant data recorded yet." : `No results for "${search}"`}</p>
           </div>
         ) : (
-          <table className="ud-rec-table">
-            <thead>
-              <tr>
-                <th style={{ padding: "10px 24px" }}>NAME</th>
-                <th style={{ padding: "10px 12px" }}>ROLE</th>
-                <th style={{ padding: "10px 12px" }}>JOINED AT</th>
-                <th style={{ padding: "10px 12px" }}>LEFT AT</th>
-                <th style={{ padding: "10px 24px", textAlign: "right" }}>ATTENDED</th>
-              </tr>
-            </thead>
-            <tbody>
-              {participants.map(p => (
-                <tr key={p.id}>
-                  <td style={{ padding: "14px 24px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <Av name={p.display_name} />
-                      <span style={{ fontWeight: 500, color: "var(--text)" }}>{p.display_name}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: "14px 12px" }}>
-                    <span style={{
-                      display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                      background: p.role === "host" ? "rgba(108,99,255,.12)" : "rgba(100,116,139,.1)",
-                      color: p.role === "host" ? "var(--primary)" : "var(--muted)",
-                      textTransform: "uppercase", letterSpacing: "0.05em",
-                    }}>{p.role}</span>
-                  </td>
-                  <td style={{ padding: "14px 12px", fontSize: 13, color: "var(--muted)", whiteSpace: "nowrap" }}>{fmtTime(p.joined_at)}</td>
-                  <td style={{ padding: "14px 12px", fontSize: 13, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                    {p.left_at ? fmtTime(p.left_at) : <span style={{ color: "#16a34a", fontWeight: 600 }}>● Still in</span>}
-                  </td>
-                  <td style={{ padding: "14px 24px", textAlign: "right", fontWeight: 700, fontSize: 14, color: "var(--text)" }}>
-                    {fmtDuration(p.duration_seconds)}
-                  </td>
+          <>
+            <table className="ud-rec-table">
+              <thead>
+                <tr>
+                  <th style={{ padding: "10px 24px" }}>NAME</th>
+                  <th style={{ padding: "10px 12px" }}>ROLE</th>
+                  <th style={{ padding: "10px 12px", textAlign: "center" }}>SESSIONS</th>
+                  <th style={{ padding: "10px 24px", textAlign: "right" }}>TOTAL TIME</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pagedGroups.map(g => {
+                  const isOpen = expanded === g.display_name;
+                  return (
+                    <>
+                      {/* ── Group row ── */}
+                      <tr
+                        key={g.display_name}
+                        onClick={() => setExpanded(isOpen ? null : g.display_name)}
+                        style={{ cursor: "pointer", background: isOpen ? "var(--surface2)" : "" }}
+                        onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = "var(--surface2)"; }}
+                        onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = ""; }}
+                      >
+                        <td style={{ padding: "14px 24px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <Av name={g.display_name} />
+                            <div>
+                              <div style={{ fontWeight: 600, color: "var(--text)" }}>{g.display_name}</div>
+                              {g.stillIn && (
+                                <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 600, marginTop: 2 }}>● Still in meeting</div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "14px 12px" }}>
+                          <span style={{
+                            display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                            background: g.role === "host" ? "rgba(108,99,255,.12)" : "rgba(100,116,139,.1)",
+                            color: g.role === "host" ? "var(--primary)" : "var(--muted)",
+                            textTransform: "uppercase", letterSpacing: "0.05em",
+                          }}>{g.role}</span>
+                        </td>
+                        <td style={{ padding: "14px 12px", textAlign: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                            <span style={{
+                              display: "inline-block", minWidth: 22, padding: "2px 7px", borderRadius: 20,
+                              fontSize: 12, fontWeight: 700, textAlign: "center",
+                              background: g.sessions.length > 1 ? "rgba(245,158,11,.15)" : "rgba(100,116,139,.1)",
+                              color: g.sessions.length > 1 ? "#d97706" : "var(--muted)",
+                            }}>{g.sessions.length}</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2.5"
+                              style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }}>
+                              <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                          </div>
+                        </td>
+                        <td style={{ padding: "14px 24px", textAlign: "right", fontWeight: 700, fontSize: 15, color: "var(--text)" }}>
+                          {fmtDuration(g.totalSeconds)}
+                        </td>
+                      </tr>
+
+                      {/* ── Session detail banner ── */}
+                      {isOpen && (
+                        <tr key={`${g.display_name}-detail`}>
+                          <td colSpan={4} style={{ padding: 0, background: "var(--surface2)" }}>
+                            <div style={{
+                              margin: "0 24px 16px",
+                              borderRadius: 10,
+                              border: "1px solid var(--border)",
+                              overflow: "hidden",
+                              marginTop: 8,
+                            }}>
+                              {/* Banner header */}
+                              <div style={{
+                                padding: "10px 16px",
+                                background: "rgba(108,99,255,.08)",
+                                borderBottom: "1px solid var(--border)",
+                                display: "flex", alignItems: "center", gap: 8,
+                              }}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2">
+                                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)" }}>
+                                  Session history for {g.display_name}
+                                </span>
+                                <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--muted)" }}>
+                                  {g.sessions.length} session{g.sessions.length !== 1 ? "s" : ""} · total {fmtDuration(g.totalSeconds)}
+                                </span>
+                              </div>
+
+                              {/* Session rows */}
+                              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                <thead>
+                                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                                    {["#", "JOINED", "LEFT", "DURATION"].map((h, i) => (
+                                      <th key={h} style={{
+                                        padding: "8px 14px", fontSize: 10, fontWeight: 700,
+                                        color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.07em",
+                                        textAlign: i === 3 ? "right" : "left", background: "transparent",
+                                      }}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {g.sessions.map((s, idx) => (
+                                    <tr key={s.id} style={{ borderBottom: idx < g.sessions.length - 1 ? "1px solid var(--border)" : "none" }}>
+                                      <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--muted)", fontWeight: 600, width: 32 }}>
+                                        {idx + 1}
+                                      </td>
+                                      <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text)", whiteSpace: "nowrap" }}>
+                                        {fmtTime(s.joined_at)}
+                                      </td>
+                                      <td style={{ padding: "10px 14px", fontSize: 12, whiteSpace: "nowrap" }}>
+                                        {s.left_at
+                                          ? <span style={{ color: "var(--text)" }}>{fmtTime(s.left_at)}</span>
+                                          : <span style={{ color: "#16a34a", fontWeight: 600 }}>● Still in</span>
+                                        }
+                                      </td>
+                                      <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
+                                        {s.duration_seconds ? fmtDuration(s.duration_seconds) : "—"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+            <Pagination page={partPage} totalPages={partTotalPages} total={filteredGroups.length} pageSize={PAGE_SIZE} onChange={setPartPage} />
+          </>
         )}
       </div>
     </div>
@@ -1022,6 +1192,7 @@ function SummaryPage({ meetings }) {
   const [search, setSearch]       = useState("");
   const [filter, setFilter]       = useState("all");
   const [sort, setSort]           = useState("newest");
+  const [page, setPage]           = useState(1);
 
   // Restore selected meeting from sessionStorage once meetings list is available
   useEffect(() => {
@@ -1053,11 +1224,17 @@ function SummaryPage({ meetings }) {
 
   if (selected) return <SummaryDetail meeting={selected} summaryData={summaries[selected.room_code]} onBack={goBack} />;
 
-  const totalParticipants = Object.values(summaries).reduce((s, d) => s + (d?.participants?.length || 0), 0);
+  const totalParticipants = Object.values(summaries).reduce((s, d) => s + (d?.unique_participant_count || 0), 0);
   const meetingDurations = meetings.map(m => {
     const d = summaries[m.room_code];
     if (!d?.participants?.length) return null;
-    return Math.max(...d.participants.map(p => p.duration_seconds || 0)) || null;
+    // Sum all session durations per unique participant, then take the max across participants
+    const byName = {};
+    d.participants.forEach(p => {
+      byName[p.display_name] = (byName[p.display_name] || 0) + (p.duration_seconds || 0);
+    });
+    const vals = Object.values(byName);
+    return vals.length ? Math.max(...vals) : null;
   }).filter(x => x != null);
   const avgDuration     = meetingDurations.length ? Math.round(meetingDurations.reduce((s, v) => s + v, 0) / meetingDurations.length) : null;
   const longestDuration = meetingDurations.length ? Math.max(...meetingDurations) : null;
@@ -1070,6 +1247,10 @@ function SummaryPage({ meetings }) {
     return true;
   });
   if (sort === "oldest") filtered = [...filtered].reverse();
+
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage    = Math.min(page, totalPages);
+  const paginated   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const STAT_CARDS = [
     { label: "TOTAL MEETINGS",      value: meetings.length,              sub: "all time" },
@@ -1115,13 +1296,13 @@ function SummaryPage({ meetings }) {
             style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input placeholder="Search by name or room code…" value={search} onChange={e => setSearch(e.target.value)}
+          <input placeholder="Search by name or room code…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
             style={{ width: "100%", padding: "8px 12px 8px 34px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, outline: "none", background: "var(--surface)", color: "var(--text)", boxSizing: "border-box" }}
           />
         </div>
         <div style={{ display: "flex", background: "var(--surface2)", borderRadius: 8, border: "1px solid var(--border)", overflow: "hidden" }}>
           {[["all","All"],["live","Live"],["ended","Ended"]].map(([val, lbl]) => (
-            <button key={val} onClick={() => setFilter(val)} style={{
+            <button key={val} onClick={() => { setFilter(val); setPage(1); }} style={{
               padding: "7px 16px", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500,
               background: filter === val ? "var(--primary)" : "transparent",
               color: filter === val ? "#fff" : "var(--muted)",
@@ -1129,7 +1310,7 @@ function SummaryPage({ meetings }) {
             }}>{lbl}</button>
           ))}
         </div>
-        <select value={sort} onChange={e => setSort(e.target.value)}
+        <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
           style={{ padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, background: "var(--surface2)", color: "var(--text)", outline: "none", cursor: "pointer", fontFamily: "inherit" }}>
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
@@ -1168,12 +1349,15 @@ function SummaryPage({ meetings }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(m => {
+                  {paginated.map(m => {
                     const sd = summaries[m.room_code];
-                    const people = sd?.participants?.length ?? "—";
-                    const dur = sd?.participants?.length
-                      ? fmtDuration(Math.max(...sd.participants.map(p => p.duration_seconds || 0)))
-                      : "—";
+                    const people = sd?.unique_participant_count ?? "—";
+                    const byName = {};
+                    (sd?.participants || []).forEach(p => {
+                      byName[p.display_name] = (byName[p.display_name] || 0) + (p.duration_seconds || 0);
+                    });
+                    const durVals = Object.values(byName);
+                    const dur = durVals.length ? fmtDuration(Math.max(...durVals)) : "—";
                     return (
                       <tr key={m.room_code} onClick={() => selectMeeting(m)} style={{ cursor: "pointer" }}
                         onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
@@ -1199,9 +1383,7 @@ function SummaryPage({ meetings }) {
                   })}
                 </tbody>
               </table>
-              <div style={{ padding: "12px 24px", borderTop: "1px solid var(--border)", textAlign: "right", fontSize: 12, color: "var(--muted)" }}>
-                {filtered.length} of {meetings.length} meeting{meetings.length !== 1 ? "s" : ""}
-              </div>
+              <Pagination page={safePage} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
             </>
           )}
         </div>
