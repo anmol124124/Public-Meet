@@ -29,43 +29,24 @@ function fmtTime(iso) {
 // ── PLAN CONFIG ──────────────────────────────────────────────────────────────
 const PLANS = [
   {
-    key: "free", name: "Starter", priceLabel: "Free", priceSub: "No credit card required",
-    color: "#6b7280", popular: false, inherits: null,
-    groups: [
-      { icon: "🎥", label: "Meetings",      items: ["40-minute meetings", "Up to 100 participants"] },
-      { icon: "📹", label: "Video & Audio", items: ["HD video quality", "Noise cancellation"] },
-      { icon: "☁️", label: "Recording",     items: ["Cloud recording included"] },
-      { icon: "💬", label: "Chat",          items: ["In-meeting messaging", "Screen share"] },
-    ],
+    key: "free", name: "Starter", priceLabel: "$0", priceSub: "Free forever",
+    color: "#5f6368", popular: false, enterprise: false,
+    features: ["Up to 5-minute meeting duration", "Up to 2 participants", "Chat & screen share", "No credit card required"],
   },
   {
-    key: "basic", name: "Basic", priceLabel: "$9.99", price: "$9.99", priceSub: "per month",
-    color: "#1a73e8", popular: false, inherits: "Starter",
-    groups: [
-      { icon: "🎥", label: "Meetings",  items: ["Up to 24-hour meetings", "Up to 100 participants"] },
-      { icon: "☁️", label: "Recording", items: ["Cloud recording with 5 GB storage"] },
-      { icon: "🎧", label: "Support",   items: ["Email support", "Help centre access"] },
-    ],
+    key: "basic", name: "Basic", priceLabel: "$9.99", priceSub: "/ month",
+    color: "#1a73e8", popular: false, enterprise: false,
+    features: ["Up to 10-minute meeting duration", "Up to 4 participants", "Chat & screen share", "Meeting recordings"],
   },
   {
-    key: "pro", name: "Pro", priceLabel: "$29.99", price: "$29.99", priceSub: "per month",
-    color: "#6c63ff", popular: true, inherits: "Basic",
-    groups: [
-      { icon: "🎥", label: "Meetings",   items: ["Unlimited meeting duration", "Up to 300 participants"] },
-      { icon: "☁️", label: "Recording",  items: ["Cloud recording with 50 GB storage", "Recording transcripts"] },
-      { icon: "🎨", label: "Branding",   items: ["Custom branding", "Branded waiting room"] },
-      { icon: "🎧", label: "Support",    items: ["Priority support"] },
-    ],
+    key: "pro", name: "Pro", priceLabel: "$29.99", priceSub: "/ month",
+    color: "#6c63ff", popular: true, enterprise: false,
+    features: ["Unlimited meeting duration", "Up to 6 participants", "Everything in Basic", "Priority support"],
   },
   {
-    key: "enterprise", name: "Enterprise", priceLabel: "Custom", priceSub: "Tailored to your needs",
-    color: "#f59e0b", popular: false, enterprise: true, inherits: null,
-    groups: [
-      { icon: "📹", label: "Video",       items: ["4K video quality", "4K cloud recording", "Unlimited storage"] },
-      { icon: "🏷️", label: "White-label", items: ["Full white-label solution", "Custom domain & branding"] },
-      { icon: "🔒", label: "Enterprise",  items: ["SSO & managed domains", "SLA guarantee (99.9%)"] },
-      { icon: "🎧", label: "Support",     items: ["Dedicated account manager", "24/7 phone support"] },
-    ],
+    key: "enterprise", name: "Enterprise", priceLabel: "Custom", priceSub: "",
+    color: "#f59e0b", popular: false, enterprise: true,
+    features: ["Unlimited meeting duration", "Unlimited participants", "White-label branding", "Dedicated support & SSO"],
   },
 ];
 const PLAN_ORDER = ["free", "basic", "pro", "enterprise"];
@@ -345,10 +326,44 @@ function OverviewPage({ user, meetings }) {
 
 // ── MY PLAN PAGE ─────────────────────────────────────────────────────────────
 function MyPlanPage({ user, onToast, onUserRefresh }) {
-  const currentKey  = user?.plan || "free";
-  const currentIdx  = PLAN_ORDER.indexOf(currentKey);
-  const [upgrading, setUpgrading] = useState(null);
+  const currentKey = user?.plan || "free";
+  const currentIdx = PLAN_ORDER.indexOf(currentKey);
+  const [upgrading, setUpgrading]     = useState(null);
   const [contactOpen, setContactOpen] = useState(false);
+  const [hovered, setHovered]         = useState(null);
+  const [downgradingFree, setDowngradingFree] = useState(false);
+  const [isExpired, setIsExpired]     = useState(false);
+
+  const expiresAt = user?.plan_expires_at ? new Date(user.plan_expires_at) : null;
+  const expiryLabel = expiresAt
+    ? expiresAt.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  // Detect client-side expiry and auto-refresh user data
+  useEffect(() => {
+    if (!expiresAt || currentKey === "free") { setIsExpired(false); return; }
+    const check = () => {
+      if (new Date() >= expiresAt) { setIsExpired(true); onUserRefresh(); }
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => clearInterval(id);
+  }, [expiresAt, currentKey]);
+
+  async function handleDowngradeToFree() {
+    setDowngradingFree(true);
+    try {
+      await activatePlan("free");
+      onToast("Switched to Free plan.");
+      onUserRefresh();
+    } catch (e) {
+      onToast("Failed to switch plan: " + e.message);
+    } finally {
+      setDowngradingFree(false);
+    }
+  }
+
+  const expiredPlan = isExpired ? PLANS.find(p => p.key === currentKey) : null;
 
   return (
     <div className="ud-page">
@@ -357,119 +372,159 @@ function MyPlanPage({ user, onToast, onUserRefresh }) {
         <p>Choose the plan that fits your needs. Upgrade or downgrade at any time.</p>
       </div>
 
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
-        gap: 0, border: "1px solid var(--border)", borderRadius: 18,
-        overflow: "hidden", background: "var(--surface2)",
-      }}>
-        {PLANS.map((plan, idx) => {
+      {/* ── Expired banner ─────────────────────────────────────────────── */}
+      {isExpired && expiredPlan && (
+        <div style={{
+          background: "rgba(239,68,68,.1)", border: "1.5px solid rgba(239,68,68,.35)",
+          borderRadius: 14, padding: "18px 22px", marginBottom: 24,
+          display: "flex", flexDirection: "column", gap: 14,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>⚠️</span>
+            <div>
+              <div style={{ fontWeight: 700, color: "var(--text)", fontSize: 15 }}>
+                Your {expiredPlan.name} plan has expired
+              </div>
+              <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>
+                You've been moved back to the free plan. Renew or stay on Starter.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              onClick={() => setUpgrading(expiredPlan)}
+              style={{
+                flex: "1 1 140px", padding: "11px 16px", borderRadius: 10, border: "none",
+                background: expiredPlan.color, color: "#fff", fontWeight: 600, fontSize: 14,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Renew {expiredPlan.name}
+            </button>
+            <button
+              onClick={handleDowngradeToFree}
+              disabled={downgradingFree}
+              style={{
+                flex: "1 1 140px", padding: "11px 16px", borderRadius: 10,
+                border: "1.5px solid var(--border)", background: "transparent",
+                color: "var(--muted)", fontWeight: 600, fontSize: 14,
+                cursor: "pointer", fontFamily: "inherit",
+                opacity: downgradingFree ? 0.6 : 1,
+              }}
+            >
+              {downgradingFree ? "Switching…" : "Continue with Free"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center" }}>
+        {PLANS.map(plan => {
           const isCurrent  = plan.key === currentKey;
-          const canUpgrade = PLAN_ORDER.indexOf(plan.key) > currentIdx;
-          const isPopular  = plan.popular;
+          const planIdx    = PLAN_ORDER.indexOf(plan.key);
+          const canUpgrade = planIdx > currentIdx;
+          const canDowngradeToFree = plan.key === "free" && currentKey !== "free";
+          const isHovered  = hovered === plan.key;
 
           return (
-            <div key={plan.key} style={{
-              position: "relative",
-              borderRight: idx < PLANS.length - 1 ? "1px solid var(--border)" : "none",
-              display: "flex", flexDirection: "column",
-              background: isPopular
-                ? `linear-gradient(180deg, ${plan.color}14 0%, var(--surface2) 120px)`
-                : "transparent",
-            }}>
-              {isPopular ? (
-                <div style={{
-                  background: plan.color, color: "#fff", textAlign: "center",
-                  fontSize: 11, fontWeight: 700, letterSpacing: "0.08em",
-                  textTransform: "uppercase", padding: "6px 0",
-                }}>Most Popular</div>
-              ) : <div style={{ height: 0 }} />}
-
-              <div style={{ padding: "24px 22px 28px", flex: 1, display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: plan.color, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    {plan.name}
-                  </span>
-                  {isCurrent && (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: plan.color, border: `1.5px solid ${plan.color}`, borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>
-                      CURRENT
-                    </span>
-                  )}
+            <div
+              key={plan.key}
+              onMouseEnter={() => setHovered(plan.key)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                flex: "1 1 200px", maxWidth: 220,
+                background: "var(--surface2)",
+                borderRadius: 16,
+                border: `1.5px solid ${plan.popular ? plan.color : isHovered ? "rgba(255,255,255,.25)" : "var(--border)"}`,
+                padding: "28px 22px",
+                display: "flex", flexDirection: "column",
+                position: "relative",
+                boxShadow: plan.popular
+                  ? `0 0 0 2px ${plan.color}, 0 ${isHovered ? 16 : 8}px ${isHovered ? 48 : 40}px rgba(0,0,0,.5)`
+                  : isHovered ? "0 8px 32px rgba(0,0,0,.5)" : "none",
+                transform: isHovered ? "translateY(-3px)" : "translateY(0)",
+                transition: "transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease",
+              }}
+            >
+              {isCurrent && (
+                <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", background: "#34a853", padding: "3px 14px", borderRadius: 20, fontSize: 11, fontWeight: 700, color: "#fff", whiteSpace: "nowrap" }}>
+                  Current Plan
                 </div>
-
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: plan.enterprise ? 28 : 36, fontWeight: 800, color: "var(--text)", lineHeight: 1.1 }}>
-                    {plan.priceLabel}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>{plan.priceSub}</div>
+              )}
+              {!isCurrent && plan.popular && (
+                <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", background: plan.color, padding: "3px 14px", borderRadius: 20, fontSize: 11, fontWeight: 700, color: "#fff", whiteSpace: "nowrap" }}>
+                  Most Popular
                 </div>
+              )}
 
-                {plan.enterprise ? (
-                  <button onClick={() => setContactOpen(true)} style={{
-                    background: isCurrent ? "transparent" : `linear-gradient(135deg,${plan.color},#d97706)`,
-                    color: isCurrent ? plan.color : "#fff",
-                    border: `1.5px solid ${plan.color}`, borderRadius: 8,
-                    padding: "10px 0", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%",
-                    marginBottom: 20, boxShadow: isCurrent ? "none" : `0 4px 16px ${plan.color}40`, fontFamily: "inherit",
-                  }}>
-                    {isCurrent ? "✓ Your current plan" : "Contact Sales"}
-                  </button>
-                ) : isCurrent ? (
-                  <div style={{
-                    textAlign: "center", padding: "10px 0", fontSize: 13, fontWeight: 600,
-                    color: plan.color, border: `1.5px solid ${plan.color}40`, borderRadius: 8, marginBottom: 20,
-                  }}>✓ Your current plan</div>
-                ) : canUpgrade ? (
-                  <button onClick={() => setUpgrading(plan)} style={{
-                    background: isPopular ? `linear-gradient(135deg, ${plan.color}, ${plan.color}cc)` : "transparent",
-                    color: isPopular ? "#fff" : plan.color,
-                    border: `1.5px solid ${plan.color}`, borderRadius: 8,
-                    padding: "10px 0", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%",
-                    marginBottom: 20, boxShadow: isPopular ? `0 4px 16px ${plan.color}40` : "none", fontFamily: "inherit",
-                  }}>Upgrade</button>
-                ) : (
-                  <div style={{
-                    textAlign: "center", padding: "10px 0", fontSize: 13, color: "var(--muted)",
-                    border: "1.5px solid var(--border)", borderRadius: 8, marginBottom: 20, opacity: 0.5,
-                  }}>
-                    {plan.key === "free" ? "Included" : "Downgrade"}
-                  </div>
-                )}
+              <div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: plan.color, marginBottom: 8 }}>{plan.name}</div>
 
-                <div style={{ borderTop: "1px solid var(--border)", marginBottom: 14 }} />
-                {plan.inherits && (
-                  <p style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "0 0 12px" }}>
-                    All of {plan.inherits}, and:
-                  </p>
-                )}
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1 }}>
-                  {plan.groups.map((group, gi) => (
-                    <div key={gi}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                        <span style={{ fontSize: 13 }}>{group.icon}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{group.label}</span>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 5, paddingLeft: 4 }}>
-                        {group.items.map((item, ii) => (
-                          <div key={ii} style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={plan.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
-                              <polyline points="20 6 9 17 4 12"/>
-                            </svg>
-                            <span style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
+                  <span style={{ fontSize: plan.priceLabel === "Custom" ? 24 : 32, fontWeight: 800, color: "var(--text)" }}>{plan.priceLabel}</span>
+                  {plan.priceSub && <span style={{ fontSize: 13, color: "var(--muted)", paddingBottom: 6 }}>{plan.priceSub}</span>}
                 </div>
               </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28, flex: 1 }}>
+                {plan.features.map((f, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--muted)" }}>
+                    <span style={{ color: plan.color, fontSize: 16, lineHeight: 1 }}>✓</span>
+                    {f}
+                  </div>
+                ))}
+              </div>
+
+              {plan.enterprise ? (
+                <button onClick={() => setContactOpen(true)} style={{
+                  width: "100%", padding: "12px", borderRadius: 10, border: "none",
+                  background: plan.color, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  filter: isHovered ? "brightness(1.15)" : "none", transition: "filter 0.15s ease", fontFamily: "inherit",
+                }}>Contact Sales</button>
+              ) : isCurrent ? (
+                <button disabled style={{
+                  width: "100%", padding: "12px", borderRadius: 10, border: "none",
+                  background: "rgba(52,168,83,.15)", color: "#34a853", fontSize: 14, fontWeight: 600, cursor: "default", fontFamily: "inherit",
+                }}>✓ Current Plan</button>
+              ) : canUpgrade ? (
+                <button onClick={() => setUpgrading(plan)} style={{
+                  width: "100%", padding: "12px", borderRadius: 10, border: "none",
+                  background: plan.color, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  filter: isHovered ? "brightness(1.15)" : "none", transition: "filter 0.15s ease", fontFamily: "inherit",
+                }}>Upgrade to {plan.name}</button>
+              ) : canDowngradeToFree ? (
+                <button
+                  onClick={handleDowngradeToFree}
+                  disabled={downgradingFree}
+                  style={{
+                    width: "100%", padding: "12px", borderRadius: 10,
+                    border: "1.5px solid var(--border)", background: "transparent",
+                    color: "var(--muted)", fontSize: 14, fontWeight: 600,
+                    cursor: "pointer", fontFamily: "inherit",
+                    opacity: downgradingFree ? 0.6 : 1,
+                    filter: isHovered ? "brightness(1.3)" : "none", transition: "filter 0.15s ease",
+                  }}
+                >{downgradingFree ? "Switching…" : "Downgrade to Free"}</button>
+              ) : (
+                <button disabled style={{
+                  width: "100%", padding: "12px", borderRadius: 10, border: "1.5px solid var(--border)",
+                  background: "transparent", color: "var(--muted)", fontSize: 14, cursor: "default", opacity: 0.5, fontFamily: "inherit",
+                }}>Downgrade</button>
+              )}
             </div>
           );
         })}
       </div>
 
-      <p style={{ marginTop: 16, fontSize: 12, color: "var(--muted)", textAlign: "center" }}>
-        All plans include a sandbox environment. Payments are simulated — no real charges.
+      {expiryLabel && !isExpired && (
+        <div style={{ marginTop: 16, textAlign: "center", fontSize: 13, color: "var(--muted)" }}>
+          Your <strong style={{ color: "var(--text)" }}>{PLANS.find(p => p.key === currentKey)?.name}</strong> plan expires on{" "}
+          <strong style={{ color: "#f59e0b" }}>{expiryLabel}</strong>. After expiry you'll return to the free plan.
+        </div>
+      )}
+
+      <p style={{ marginTop: 12, fontSize: 12, color: "var(--muted)", textAlign: "center" }}>
+        Sandbox environment — payments are simulated, no real charges.
       </p>
 
       {upgrading && (
@@ -614,17 +669,15 @@ function AddOnsPage({ user, onToast, onNavMyPlan }) {
   const isFree = !user?.plan || user.plan === "free";
   const [enabled, setEnabled] = useState(() => {
     const v = localStorage.getItem("pub_recording_addon_enabled");
-    if (v === null) return !isFree; // paid default: on; free default: off
+    if (v === null) return !isFree;
     return v === "true";
   });
-  const [dirty, setDirty]     = useState(false);
-  const [showFreeMsg, setShowFreeMsg] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   function toggle() {
-    if (isFree) { setShowFreeMsg(true); return; }
+    if (isFree) return; // locked — banner is always visible
     setEnabled(v => !v);
     setDirty(true);
-    setShowFreeMsg(false);
   }
 
   function save() {
@@ -651,6 +704,7 @@ function AddOnsPage({ user, onToast, onNavMyPlan }) {
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "16px 0",
+            opacity: isFree ? 0.6 : 1,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{
@@ -666,8 +720,18 @@ function AddOnsPage({ user, onToast, onNavMyPlan }) {
                 </svg>
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", marginBottom: 2 }}>
-                  Screen Recording
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
+                    Screen Recording
+                  </span>
+                  {isFree && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
+                      background: "rgba(245,158,11,.18)", color: "#f59e0b",
+                      border: "1px solid rgba(245,158,11,.35)", borderRadius: 6,
+                      padding: "2px 7px",
+                    }}>Paid only</span>
+                  )}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
                   Allows you to record meetings. Requires a paid plan (Basic or above).
@@ -675,11 +739,10 @@ function AddOnsPage({ user, onToast, onNavMyPlan }) {
               </div>
             </div>
             <div style={{ marginLeft: 16 }}>
-              {/* Toggle */}
-              <button onClick={toggle} style={{
+              <button onClick={toggle} disabled={isFree} style={{
                 position: "relative", width: 44, height: 24, borderRadius: 12, border: "none",
-                cursor: "pointer",
-                background: enabled && !isFree ? "var(--primary)" : "rgba(0,0,0,.15)",
+                cursor: isFree ? "not-allowed" : "pointer",
+                background: enabled && !isFree ? "var(--primary)" : "rgba(255,255,255,.1)",
                 transition: "background .2s", flexShrink: 0,
               }}>
                 <span style={{
@@ -691,27 +754,29 @@ function AddOnsPage({ user, onToast, onNavMyPlan }) {
             </div>
           </div>
 
-          {/* Free plan upgrade message */}
-          {showFreeMsg && (
+          {/* Free plan — always-visible upgrade notice */}
+          {isFree && (
             <div style={{
               display: "flex", alignItems: "flex-start", gap: 12,
-              background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.3)",
-              borderRadius: 10, padding: "14px 16px", marginTop: 4, marginBottom: 8,
+              background: "rgba(245,158,11,.1)", border: "1px solid rgba(245,158,11,.3)",
+              borderRadius: 10, padding: "14px 16px", marginBottom: 8,
             }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}>
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 4 }}>
-                  You're on the Free plan
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#f59e0b", marginBottom: 4 }}>
+                  Recording is not available on the Free plan
                 </div>
-                <div style={{ fontSize: 13, color: "#78350f", lineHeight: 1.5 }}>
-                  Screen recording requires a paid plan. Please upgrade to <strong>Basic</strong> or above to enable this feature.
+                <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
+                  Upgrade to <strong style={{ color: "var(--text)" }}>Basic</strong> or above to unlock screen recording in your meetings.
                 </div>
                 <button
-                  onClick={() => { setShowFreeMsg(false); onNavMyPlan(); }}
+                  onClick={onNavMyPlan}
                   style={{
-                    marginTop: 10, padding: "7px 16px", background: "linear-gradient(135deg,#f59e0b,#d97706)",
+                    marginTop: 10, padding: "7px 16px",
+                    background: "linear-gradient(135deg,#f59e0b,#d97706)",
                     color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 600,
                     cursor: "pointer", fontFamily: "inherit",
                   }}
@@ -1189,7 +1254,21 @@ export default function UserDashboard() {
     }
   }, [loadUser]);
 
-  function navTo(id) { sessionStorage.setItem("ud_page", id); setActivePage(id); }
+
+  // Re-fetch meetings when the browser tab regains visibility
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden && isLoggedIn()) listMeetings().then(setMeetings).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  function navTo(id) {
+    sessionStorage.setItem("ud_page", id);
+    setActivePage(id);
+    if (id === "overview") listMeetings().then(setMeetings).catch(() => {});
+  }
 
   function handleLogout() { logout(); navigate("/"); }
 
@@ -1260,6 +1339,7 @@ export default function UserDashboard() {
       </div>
 
       <div className={`ud-toast${toast.show ? " show" : ""}`}>{toast.msg}</div>
+
     </div>
   );
 }

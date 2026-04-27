@@ -287,8 +287,62 @@ export default function Home() {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const T = ({ pos, anim, border, glow, children }) => (
+    <div className="rmly-tile" style={{ position:"absolute", ...pos, pointerEvents:"none", animation:`${anim} infinite`, opacity:.38 }}>
+      <div style={{ background:"rgba(30,34,44,0.45)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", border:`1px solid ${border||"rgba(255,255,255,.08)"}`, borderRadius:14, padding:"14px 14px 12px", display:"flex", flexDirection:"column", alignItems:"center", gap:8, boxShadow: glow ? `0 4px 20px rgba(0,0,0,.25),0 0 14px ${glow}` : "0 4px 20px rgba(0,0,0,.2)" }}>
+        {children}
+      </div>
+    </div>
+  );
+
+  const Av = ({ initials, bg, pulse }) => (
+    <div style={{ width:42, height:42, borderRadius:"50%", background:bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, fontWeight:700, color:"#fff", animation: pulse ? `${pulse} 2s ease-out infinite` : "none", flexShrink:0 }}>{initials}</div>
+  );
+
+  const Waves = ({ color, order }) => (
+    <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:18 }}>
+      {order.map((a,i) => <div key={i} style={{ width:3, borderRadius:2, background:color, animation:`${a} ${.4+i*.1}s ease-in-out infinite` }} />)}
+    </div>
+  );
+
+  const StatusRow = ({ mic, cam, label }) => (
+    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill={mic ? "#9aa0a6" : "#ea4335"}>
+        {mic ? <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+             : <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>}
+      </svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill={cam ? "#9aa0a6" : "#ea4335"}>
+        {cam ? <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+              : <path d="M21 6.5l-4-4-9.27 9.27-.73-.73-1.41 1.41.73.73-3 3H3v2h2.27L2 21l1.41 1.41L21 4.91 21 6.5zm-7 7l-5.5-5.5H16v3.5l4-4v9l-1.17-1.17L14 13.5zM3 7h2.27L7 8.73V7H3zm14 10H7.27l-2-2H17v2z"/>}
+      </svg>
+      {label && <span style={{ color:"#9aa0a6", fontSize:10 }}>{label}</span>}
+    </div>
+  );
+
   return (
     <div style={styles.page}>
+      <style>{`
+        /* Full-background traversal — tiles enter from one edge and exit the other */
+        @keyframes rmly-ltr   { from{transform:translateX(0)}                      to{transform:translateX(calc(100vw + 340px))} }
+        @keyframes rmly-rtl   { from{transform:translateX(0)}                      to{transform:translateX(calc(-100vw - 340px))} }
+        @keyframes rmly-ttb   { from{transform:translateY(0)}                      to{transform:translateY(calc(70vh + 260px))} }
+        @keyframes rmly-btt   { from{transform:translateY(0)}                      to{transform:translateY(calc(-70vh - 260px))} }
+        @keyframes rmly-diag1 { from{transform:translate(0,0)}                     to{transform:translate(calc(100vw + 340px), calc(60vh + 200px))} }
+        @keyframes rmly-diag2 { from{transform:translate(0,0)}                     to{transform:translate(calc(-100vw - 340px), calc(60vh + 200px))} }
+        @keyframes rmly-diag3 { from{transform:translate(0,0)}                     to{transform:translate(calc(100vw + 340px), calc(-60vh - 200px))} }
+        /* Status indicators inside tiles */
+        @keyframes rmly-pulse  { 0%{box-shadow:0 0 0 0 rgba(52,168,83,.6)}  70%{box-shadow:0 0 0 10px rgba(52,168,83,0)}  100%{box-shadow:0 0 0 0 rgba(52,168,83,0)} }
+        @keyframes rmly-pulse2 { 0%{box-shadow:0 0 0 0 rgba(26,115,232,.55)} 70%{box-shadow:0 0 0 10px rgba(26,115,232,0)} 100%{box-shadow:0 0 0 0 rgba(26,115,232,0)} }
+        @keyframes rmly-pulse3 { 0%{box-shadow:0 0 0 0 rgba(147,52,230,.5)}  70%{box-shadow:0 0 0 10px rgba(147,52,230,0)} 100%{box-shadow:0 0 0 0 rgba(147,52,230,0)} }
+        @keyframes rmly-w1 { 0%,100%{height:4px}  50%{height:16px} }
+        @keyframes rmly-w2 { 0%,100%{height:12px} 50%{height:4px}  }
+        @keyframes rmly-w3 { 0%,100%{height:7px}  50%{height:18px} }
+        @keyframes rmly-w4 { 0%,100%{height:14px} 50%{height:5px}  }
+        @keyframes rmly-w5 { 0%,100%{height:5px}  50%{height:13px} }
+        @keyframes rmly-dot  { 0%,100%{opacity:.3} 50%{opacity:1} }
+        @keyframes rmly-hand { 0%,100%{transform:rotate(0deg)} 30%{transform:rotate(14deg)} 60%{transform:rotate(-8deg)} }
+        @media(max-width:960px){ .rmly-tile{ display:none !important; } }
+      `}</style>
       {/* ── Toast ── */}
       {toast && (
         <div style={styles.toast}>
@@ -375,6 +429,80 @@ export default function Home() {
 
       {/* ── Hero ── */}
       <div style={styles.hero}>
+
+        {/* ── LEFT → RIGHT (enter from left edge, exit right) ── */}
+        <T pos={{left:"-160px", top:"10%", width:148}} anim="rmly-ltr 26s linear -8s" border="rgba(26,115,232,.4)" glow="rgba(26,115,232,.18)">
+          <Av initials="AJ" bg="#1a73e8" pulse="rmly-pulse2" />
+          <div style={{color:"#e8eaed",fontSize:12,fontWeight:600}}>Alex Johnson</div>
+          <Waves color="#1a73e8" order={["rmly-w1","rmly-w2","rmly-w3","rmly-w4","rmly-w5"]} />
+        </T>
+
+        <T pos={{left:"-160px", top:"52%", width:148}} anim="rmly-ltr 31s linear -19s">
+          <Av initials="SR" bg="#34a853" />
+          <div style={{color:"#e8eaed",fontSize:12,fontWeight:600}}>Sarah R.</div>
+          <StatusRow mic={true} cam={false} label="Cam off" />
+        </T>
+
+        <T pos={{left:"-160px", top:"78%", width:148}} anim="rmly-ltr 23s linear -4s">
+          <div style={{position:"relative"}}>
+            <Av initials="TL" bg="#e91e8c" />
+            <span style={{position:"absolute",top:-4,right:-4,fontSize:12,animation:"rmly-hand 2.2s ease-in-out infinite"}}>✋</span>
+          </div>
+          <div style={{color:"#e8eaed",fontSize:12,fontWeight:600}}>Tom L.</div>
+          <StatusRow mic={false} cam={true} label="Hand raised" />
+        </T>
+
+        {/* ── RIGHT → LEFT (enter from right edge, exit left) ── */}
+        <T pos={{right:"-160px", top:"6%", width:148}} anim="rmly-rtl 28s linear -12s">
+          <Av initials="MK" bg="#ea4335" />
+          <div style={{color:"#e8eaed",fontSize:12,fontWeight:600}}>Mike K.</div>
+          <StatusRow mic={false} cam={true} label="Muted" />
+        </T>
+
+        <T pos={{right:"-160px", top:"44%", width:148}} anim="rmly-rtl 33s linear -22s" border="rgba(52,168,83,.4)" glow="rgba(52,168,83,.15)">
+          <Av initials="EP" bg="#9334e6" pulse="rmly-pulse3" />
+          <div style={{color:"#e8eaed",fontSize:12,fontWeight:600}}>Emma P.</div>
+          <Waves color="#34a853" order={["rmly-w3","rmly-w5","rmly-w1","rmly-w4","rmly-w2"]} />
+        </T>
+
+        <T pos={{right:"-160px", top:"70%", width:148}} anim="rmly-rtl 25s linear -7s">
+          <div style={{display:"flex",alignItems:"center",gap:6,width:"100%"}}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#1a73e8"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/></svg>
+            <div>
+              <div style={{color:"#e8eaed",fontSize:11,fontWeight:600}}>Screen sharing</div>
+              <div style={{color:"#1a73e8",fontSize:10,marginTop:1}}>Ryan S. is sharing</div>
+            </div>
+          </div>
+        </T>
+
+        {/* ── TOP → BOTTOM (enter from top, exit bottom) ── */}
+        <T pos={{left:"14%", top:"-120px", width:148}} anim="rmly-ttb 35s linear -20s">
+          <div style={{position:"relative"}}>
+            <Av initials="DH" bg="#f29900" />
+            <span style={{position:"absolute",top:-4,right:-4,fontSize:11}}>👑</span>
+          </div>
+          <div style={{color:"#e8eaed",fontSize:12,fontWeight:600}}>David H.</div>
+          <div style={{background:"rgba(242,153,0,.15)",border:"1px solid rgba(242,153,0,.4)",borderRadius:6,padding:"2px 8px",color:"#f29900",fontSize:10,fontWeight:700}}>HOST</div>
+        </T>
+
+        <T pos={{left:"72%", top:"-120px", width:148}} anim="rmly-ttb 29s linear -11s">
+          <div style={{display:"flex",alignItems:"center",gap:8,width:"100%"}}>
+            <Av initials="PK" bg="#0097a7" />
+            <div>
+              <div style={{color:"#e8eaed",fontSize:11,fontWeight:600}}>Priya K.</div>
+              <div style={{color:"#9aa0a6",fontSize:10,marginTop:2}}>Joining…</div>
+            </div>
+          </div>
+        </T>
+
+        {/* ── LIVE BADGE — diagonal ── */}
+        <div className="rmly-tile" style={{position:"absolute",left:"-160px",top:"32%",pointerEvents:"none",animation:"rmly-ltr 20s linear -3s infinite",opacity:.38}}>
+          <div style={{background:"rgba(30,34,44,0.45)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",border:"1px solid rgba(255,255,255,.08)",borderRadius:50,padding:"7px 14px",display:"flex",alignItems:"center",gap:8,boxShadow:"0 4px 20px rgba(0,0,0,.2)"}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:"#34a853",animation:"rmly-dot 1.3s ease-in-out infinite"}} />
+            <span style={{color:"#e8eaed",fontSize:12,fontWeight:600}}>8 in meeting</span>
+          </div>
+        </div>
+
         <div style={styles.heroInner}>
           <h1 style={styles.heroTitle}>Secure and high quality meetings</h1>
           <p style={styles.heroSub}>Connect with anyone, anywhere — no account needed to join.</p>

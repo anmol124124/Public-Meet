@@ -72,8 +72,14 @@ export default function SdkJoin() {
             setMauBlocked(true);
             return;
           }
-          // Keep session storage so rejoin can reuse the same token (same identity → no re-approval)
-          navigate(`/sdk/leave/${room}`);
+          const endedByHostFlag = window.__wrtcEndedByHost === true;
+          window.__wrtcEndedByHost = false;
+          window.__wrtcTimeLimitReached = false;
+          let suffix = '';
+          if (reason === 'timelimit-host')       suffix = '?ended=timelimit&role=host';
+          else if (reason === 'timelimit-guest') suffix = '?ended=timelimit&role=guest';
+          else if (reason === 'host-ended' || reason === 'kicked' || endedByHostFlag) suffix = '?ended=1';
+          navigate(`/sdk/leave/${room}` + suffix);
         },
       });
     }, 50);

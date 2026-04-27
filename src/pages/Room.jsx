@@ -56,7 +56,16 @@ export default function Room() {
         recordingEndpoint:      backendBase + '/api/v1/public/meetings/recordings/upload',
         recordingToken:         accessToken,
         recordingAddonEnabled:  recordingAddonEnabled,
-        onLeave: () => navigate(`/${roomCode}/left`),
+        onLeave: (reason) => {
+          const endedByHostFlag = window.__wrtcEndedByHost === true;
+          window.__wrtcEndedByHost = false;
+          window.__wrtcTimeLimitReached = false;
+          if (reason === 'timelimit-host')       navigate(`/${roomCode}/left?ended=timelimit&role=host`);
+          else if (reason === 'timelimit-guest') navigate(`/${roomCode}/left?ended=timelimit&role=guest`);
+          else if (reason === 'host-ended' || reason === 'kicked' || endedByHostFlag)
+                                                  navigate(`/${roomCode}/left?ended=1`);
+          else                                    navigate(`/${roomCode}/left`);
+        },
       });
     };
 
