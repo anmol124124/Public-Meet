@@ -11,8 +11,8 @@ import Left from "./pages/Left";
 import SdkJoin from "./pages/SdkJoin";
 import SdkLeave from "./pages/SdkLeave";
 
-const IDLE_MS  = 60 * 1000;   // 1 min for testing (change to 60*60*1000 for prod)
-const WARN_MS  = 15 * 1000;   // warn 15 s before logout
+const IDLE_MS  = 60 * 60 * 1000;   // 1 hour
+const WARN_MS  = 15 * 60 * 1000;   // warn at 45 min (15 min before logout)
 
 function IdleLogoutProvider({ children }) {
   const navigate     = useNavigate();
@@ -69,7 +69,7 @@ function IdleLogoutProvider({ children }) {
               Session Expiring Soon
             </div>
             <div style={{ fontSize: 14, color: "#9aa0a6", lineHeight: 1.6, marginBottom: 28 }}>
-              You've been inactive. You'll be signed out in 15 seconds.
+              You've been inactive. You'll be signed out in 15 minutes.
             </div>
             <button
               onClick={stayIn}
