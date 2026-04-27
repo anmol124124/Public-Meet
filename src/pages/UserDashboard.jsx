@@ -1186,13 +1186,14 @@ function SummaryDetail({ meeting, summaryData, onBack }) {
 }
 
 function SummaryPage({ meetings }) {
-  const [summaries, setSummaries] = useState({});
-  const [loading, setLoading]     = useState(true);
-  const [selected, setSelected]   = useState(null);
-  const [search, setSearch]       = useState("");
-  const [filter, setFilter]       = useState("all");
-  const [sort, setSort]           = useState("newest");
-  const [page, setPage]           = useState(1);
+  const [summaries, setSummaries]         = useState({});
+  const [loading, setLoading]             = useState(true);
+  const [selected, setSelected]           = useState(null);
+  const [search, setSearch]               = useState("");
+  const [filter, setFilter]               = useState("all");
+  const [sort, setSort]                   = useState("newest");
+  const [page, setPage]                   = useState(1);
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
 
   // Restore selected meeting from sessionStorage once meetings list is available
   useEffect(() => {
@@ -1315,7 +1316,7 @@ function SummaryPage({ meetings }) {
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
         </select>
-        <button className="ud-btn ud-btn-ghost ud-btn-sm" onClick={() => exportCSV(filtered, summaries)}
+        <button className="ud-btn ud-btn-ghost ud-btn-sm" onClick={() => setShowExportConfirm(true)}
           style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -1323,6 +1324,48 @@ function SummaryPage({ meetings }) {
           Export CSV
         </button>
       </div>
+
+      {/* Export confirmation modal */}
+      {showExportConfirm && (
+        <div className="ud-overlay" onClick={e => { if (e.target === e.currentTarget) setShowExportConfirm(false); }}>
+          <div className="ud-modal" style={{ maxWidth: 420 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                background: "rgba(108,99,255,.12)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>Export meetings as CSV?</div>
+                <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>
+                  {filtered.length} meeting{filtered.length !== 1 ? "s" : ""} will be included based on your current filters.
+                </div>
+              </div>
+            </div>
+            <div style={{
+              background: "var(--surface2)", border: "1px solid var(--border)",
+              borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--muted)", lineHeight: 1.6,
+            }}>
+              The file will download immediately to your device. It includes meeting name, room code, date, duration, participant count, and status.
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="ud-btn ud-btn-ghost" style={{ flex: 1 }} onClick={() => setShowExportConfirm(false)}>
+                Cancel
+              </button>
+              <button className="ud-btn ud-btn-primary" style={{ flex: 1 }} onClick={() => {
+                exportCSV(filtered, summaries);
+                setShowExportConfirm(false);
+              }}>
+                Download CSV
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       {meetings.length === 0 ? (
