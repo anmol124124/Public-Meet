@@ -1420,9 +1420,11 @@ const styles = {
   schedRow: {
     display: "flex",
     gap: "12px",
+    alignItems: "flex-end",
   },
   schedField: {
     flex: 1,
+    minWidth: 0,
     display: "flex",
     flexDirection: "column",
     gap: "6px",
@@ -1432,12 +1434,14 @@ const styles = {
     fontWeight: "500",
     color: "rgba(255,255,255,.6)",
     textAlign: "left",
+    lineHeight: "1.4",
   },
   schedInput: {
     background: "#2a2a3d",
     border: "1px solid rgba(255,255,255,.22)",
     borderRadius: "10px",
-    padding: "12px 14px",
+    padding: "0 14px",
+    height: "44px",
     fontSize: "14px",
     color: "#e8eaed",
     outline: "none",

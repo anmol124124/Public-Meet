@@ -12,6 +12,25 @@ const apiFetch = (path) =>
   fetch(`${BASE}${path}`, { headers: { "Content-Type": "application/json", ...authHeader() } })
     .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || "Error"))));
 
+function downloadRecording(rec) {
+  const url = `${BASE}/api/v1/public/meetings/recordings/${rec.id}/download`;
+  fetch(url, { headers: authHeader() })
+    .then(res => {
+      if (!res.ok) throw new Error("Download failed");
+      return res.blob();
+    })
+    .then(blob => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = rec.filename || "recording.webm";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(() => window.open(url, "_blank", "noopener"));
+}
+
 function fmtSize(bytes) {
   if (!bytes) return "—";
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -544,6 +563,9 @@ function RecordingsPage() {
   const [recordings, setRecordings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
+  const [recPage, setRecPage] = useState(1);
+  const [viewRec, setViewRec] = useState(null); // recording being previewed
+  const videoRef = useRef(null);
 
   useEffect(() => {
     apiFetch("/api/v1/public/meetings/recordings")
@@ -573,6 +595,66 @@ function RecordingsPage() {
         </div>
       )}
 
+      {/* Video preview modal */}
+      {viewRec && (
+        <div className="ud-overlay" onClick={e => { if (e.target === e.currentTarget) setViewRec(null); }}>
+          <div style={{
+            background: "#0f1117", borderRadius: 16, overflow: "hidden",
+            width: "min(860px, 94vw)", boxShadow: "0 32px 80px rgba(0,0,0,.7)",
+            display: "flex", flexDirection: "column",
+          }}>
+            {/* Modal header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#e8eaed" }}>{viewRec.filename}</div>
+                <div style={{ fontSize: 12, color: "#9aa0a6", marginTop: 2 }}>
+                  {viewRec.room_code} · {fmtTime(viewRec.created_at)} · {fmtSize(viewRec.file_size)}
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  onClick={() => downloadRecording(viewRec)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "7px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,.15)",
+                    background: "transparent", color: "#e8eaed", fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Download
+                </button>
+                <button
+                  onClick={() => videoRef.current?.requestFullscreen?.()}
+                  title="Fullscreen"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "7px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,.15)",
+                    background: "transparent", color: "#e8eaed", fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+                    <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                  </svg>
+                  Fullscreen
+                </button>
+                <button onClick={() => setViewRec(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9aa0a6", fontSize: 22, lineHeight: 1, padding: "2px 4px" }}>✕</button>
+              </div>
+            </div>
+            {/* Video player */}
+            <video
+              ref={videoRef}
+              src={viewRec.url}
+              controls
+              autoPlay
+              style={{ width: "100%", maxHeight: "70vh", background: "#000", display: "block" }}
+            />
+          </div>
+        </div>
+      )}
+
       {recordings.length > 0 && (
         <div className="ud-section-card" style={{ padding: 0, overflow: "hidden" }}>
           <table className="ud-rec-table">
@@ -585,7 +667,7 @@ function RecordingsPage() {
               </tr>
             </thead>
             <tbody>
-              {recordings.map(r => (
+              {recordings.slice((recPage - 1) * PAGE_SIZE, recPage * PAGE_SIZE).map(r => (
                 <tr key={r.id}>
                   <td style={{ padding: "14px 24px" }}>
                     <div style={{ fontFamily: "monospace", fontSize: 12, color: "var(--muted)", marginBottom: 2 }}>{r.room_code}</div>
@@ -598,17 +680,40 @@ function RecordingsPage() {
                     {fmtSize(r.file_size)}
                   </td>
                   <td style={{ padding: "14px 24px", textAlign: "right" }}>
-                    <a href={r.url} download className="ud-btn ud-btn-ghost ud-btn-sm" style={{ textDecoration: "none" }}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                      </svg>
-                      Download
-                    </a>
+                    <div style={{ display: "inline-flex", gap: 8 }}>
+                      <button
+                        className="ud-btn ud-btn-ghost ud-btn-sm"
+                        onClick={() => setViewRec(r)}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        View
+                      </button>
+                      <button
+                        className="ud-btn ud-btn-ghost ud-btn-sm"
+                        onClick={() => downloadRecording(r)}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <Pagination
+            page={recPage}
+            totalPages={Math.max(1, Math.ceil(recordings.length / PAGE_SIZE))}
+            total={recordings.length}
+            pageSize={PAGE_SIZE}
+            onChange={setRecPage}
+          />
         </div>
       )}
     </div>
