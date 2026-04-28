@@ -704,9 +704,8 @@ function AddOnsPage({ user, onToast, onNavMyPlan }) {
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "16px 0",
-            opacity: isFree ? 0.6 : 1,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, opacity: isFree ? 0.55 : 1 }}>
               <div style={{
                 width: 40, height: 40, borderRadius: 10, flexShrink: 0,
                 background: enabled && !isFree ? "rgba(108,99,255,.12)" : "var(--surface2)",
@@ -738,17 +737,25 @@ function AddOnsPage({ user, onToast, onNavMyPlan }) {
                 </div>
               </div>
             </div>
-            <div style={{ marginLeft: 16 }}>
-              <button onClick={toggle} disabled={isFree} style={{
-                position: "relative", width: 44, height: 24, borderRadius: 12, border: "none",
-                cursor: isFree ? "not-allowed" : "pointer",
-                background: enabled && !isFree ? "var(--primary)" : "rgba(255,255,255,.1)",
-                transition: "background .2s", flexShrink: 0,
-              }}>
+            <div style={{ marginLeft: 16, flexShrink: 0 }}>
+              <button
+                onClick={toggle}
+                disabled={isFree}
+                title={isFree ? "Upgrade to a paid plan to enable recording" : enabled ? "Click to disable" : "Click to enable"}
+                style={{
+                  position: "relative", width: 48, height: 26, borderRadius: 13, border: "none",
+                  cursor: isFree ? "not-allowed" : "pointer",
+                  background: isFree
+                    ? "#9ca3af"
+                    : enabled ? "var(--primary)" : "#6b7280",
+                  transition: "background .2s",
+                  boxShadow: "inset 0 1px 3px rgba(0,0,0,.25)",
+                }}
+              >
                 <span style={{
-                  position: "absolute", top: 3, left: enabled && !isFree ? 23 : 3,
-                  width: 18, height: 18, borderRadius: "50%", background: "#fff",
-                  transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+                  position: "absolute", top: 3, left: isFree ? 3 : enabled ? 25 : 3,
+                  width: 20, height: 20, borderRadius: "50%", background: "#fff",
+                  transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.3)",
                 }} />
               </button>
             </div>
